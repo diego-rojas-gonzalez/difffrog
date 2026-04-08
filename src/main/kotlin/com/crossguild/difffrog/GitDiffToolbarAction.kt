@@ -1,6 +1,7 @@
 package com.crossguild.difffrog
 
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.Presentation
@@ -13,10 +14,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
-import com.intellij.util.Alarm
-import com.intellij.util.ui.AsyncProcessIcon
+import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.ui.AnimatedIcon
 import com.intellij.util.ui.JBUI
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
@@ -26,6 +28,9 @@ import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.*
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.*
 import javax.swing.Timer
 
@@ -46,8 +51,10 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         preferredSize = Dimension(140, 26)
     }
 
-    private val loadingIcon = AsyncProcessIcon("GitDiffLoading").apply { isVisible = false }
-    private val updateAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, null)
+    private val loadingIcon = JBLabel("", AnimatedIcon.Default(), SwingConstants.LEFT).apply { isVisible = false }
+
+    private val scheduler = AppExecutorUtil.getAppScheduledExecutorService()
+    @Volatile private var scheduledTask: ScheduledFuture<*>? = null
 
     private val animationTimer = Timer(25) {
         var changed = false
@@ -74,7 +81,7 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
     }
 
     private var currentProject: Project? = null
-    private var isListenerRegistered = false
+    private val isListenerRegistered = AtomicBoolean(false)
 
     private var targetBranch: String
         get() = PropertiesComponent.getInstance().getValue(KEY_TARGET_BRANCH, "develop")
@@ -132,15 +139,18 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
 
     private fun triggerUpdate() {
         val project = currentProject ?: return
-        updateAlarm.cancelAllRequests()
+
+        // Cancel any pending scheduled task (debounce)
+        scheduledTask?.cancel(false)
 
         ApplicationManager.getApplication().invokeLater {
             loadingIcon.isVisible = true
-            loadingIcon.resume()
         }
 
-        updateAlarm.addRequest({
-            if (project.isDisposed) return@addRequest
+        val delay = mapOf(0 to 5000L, 1 to 2000L, 2 to 500L)[delayLevel] ?: 2000L
+
+        scheduledTask = scheduler.schedule({
+            if (project.isDisposed) return@schedule
             val stats = calculateDiff(project, targetBranch)
 
             targetAdded = stats.first
@@ -148,10 +158,9 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
 
             ApplicationManager.getApplication().invokeLater {
                 animationTimer.start()
-                loadingIcon.suspend()
                 loadingIcon.isVisible = false
             }
-        }, mapOf(0 to 5000, 1 to 2000, 2 to 500)[delayLevel] ?: 2000)
+        }, delay, TimeUnit.MILLISECONDS)
     }
 
     private fun showConfigPopup(anchor: JComponent) {
@@ -215,11 +224,21 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
 
     override fun update(e: AnActionEvent) {
         currentProject = e.project
-        if (currentProject != null && !isListenerRegistered) {
+        val project = currentProject ?: return
+
+        if (isListenerRegistered.compareAndSet(false, true)) {
+            // Register document listener with project as disposable for proper lifecycle
             EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
                 override fun documentChanged(event: DocumentEvent) = triggerUpdate()
-            }, currentProject!!)
-            isListenerRegistered = true
+            }, project)
+
+            // Cancel scheduled tasks when the project is disposed
+            Disposer.register(project as Disposable) {
+                scheduledTask?.cancel(false)
+                animationTimer.stop()
+                isListenerRegistered.set(false)
+            }
+
             triggerUpdate()
         }
     }

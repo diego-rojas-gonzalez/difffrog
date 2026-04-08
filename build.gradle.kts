@@ -4,8 +4,8 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.10.2"
 }
 
-group = "com.crossguild"
-version = "1.0.1"
+group = "com.astralcollar"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -26,7 +26,7 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        id.set("com.crossguild.difffrog")
+        id.set("com.astralcollar.difffrog")
         name.set("difffrog")
 
         description.set(
@@ -36,14 +36,20 @@ intellijPlatform {
         )
 
         vendor {
-            name.set("zolitatek")
+            name.set("astralcollar")
             email.set("")
             url.set("https://github.com/astralcollar/difffrog")
         }
 
         ideaVersion {
             sinceBuild.set("241")
-            untilBuild.set("252.*")
+            untilBuild.set(provider { null })
+        }
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
         }
     }
 }
