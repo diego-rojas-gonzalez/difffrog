@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.10.2"
 }
 
-group = "com.astralcollar"
+group = "com.crossguild"
 version = "1.1.0"
 
 repositories {
@@ -26,7 +26,7 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        id.set("com.astralcollar.difffrog")
+        id.set("com.crossguild.difffrog")
         name.set("difffrog")
 
         description.set(
