@@ -20,25 +20,34 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.ui.AnimatedIcon
 import com.intellij.util.ui.JBUI
-import git4idea.commands.Git
-import git4idea.commands.GitCommand
-import git4idea.commands.GitLineHandler
-import git4idea.repo.GitRepositoryManager
+import com.crossguild.difffrog.config.DiffFrogConfigService
+import com.crossguild.difffrog.presentation.DiffTextRenderer
+import com.crossguild.difffrog.presentation.DisplayFormat
+import com.crossguild.difffrog.presentation.RenderContext
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.ui.components.ActionLink
+import com.crossguild.difffrog.state.DiffDataService
+import com.crossguild.difffrog.state.DiffUpdateListener
+import java.nio.file.Paths
+import kotlin.io.path.writeText
+import kotlin.io.path.readText
+import javax.swing.border.TitledBorder
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.*
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.*
 import javax.swing.Timer
 
 class GitDiffToolbarAction : AnAction(), CustomComponentAction {
 
-    private val KEY_TARGET_BRANCH = "com.crossguild.difffrog.targetBranch"
-    private val KEY_DELAY_LEVEL = "com.crossguild.difffrog.delayLevel"
-    private val KEY_MAX_LINES = "com.crossguild.difffrog.maxLines"
+    private var config = DiffFrogConfigService.getInstance().loadConfig()
 
     private var displayedAdded = 0
     private var displayedDeleted = 0
@@ -52,9 +61,6 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
     }
 
     private val loadingIcon = JBLabel("", AnimatedIcon.Default(), SwingConstants.LEFT).apply { isVisible = false }
-
-    private val scheduler = AppExecutorUtil.getAppScheduledExecutorService()
-    @Volatile private var scheduledTask: ScheduledFuture<*>? = null
 
     private val animationTimer = Timer(25) {
         var changed = false
@@ -83,18 +89,6 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
     private var currentProject: Project? = null
     private val isListenerRegistered = AtomicBoolean(false)
 
-    private var targetBranch: String
-        get() = PropertiesComponent.getInstance().getValue(KEY_TARGET_BRANCH, "develop")
-        set(value) = PropertiesComponent.getInstance().setValue(KEY_TARGET_BRANCH, value)
-
-    private var delayLevel: Int
-        get() = PropertiesComponent.getInstance().getInt(KEY_DELAY_LEVEL, 1)
-        set(value) = PropertiesComponent.getInstance().setValue(KEY_DELAY_LEVEL, value, 1)
-
-    private var maxLines: Int
-        get() = PropertiesComponent.getInstance().getInt(KEY_MAX_LINES, 420)
-        set(value) = PropertiesComponent.getInstance().setValue(KEY_MAX_LINES, value, 420)
-
     override fun createCustomComponent(presentation: Presentation, place: String): JComponent {
         val panel = JPanel(GridBagLayout())
         panel.isOpaque = false
@@ -111,56 +105,12 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
     }
 
     private fun updateLabelText(added: Int, deleted: Int) {
-        val addColor = getInterpolatedGreen(added)
-        val delColor = "#C75450"
-
-        val icon = when {
-            added == maxLines && deleted == maxLines -> " 🌿"
-            added >= maxLines -> " ⚠️"
-            else -> ""
-        }
-
-        labelStats.text = "<html><nobr>" +
-                "<font color='$addColor'>+$added</font> " +
-                "<font color='$delColor'>-$deleted</font>" +
-                " $icon" +
-                "</nobr></html>"
-    }
-
-    private fun getInterpolatedGreen(added: Int): String {
-        val ratio = (added.toFloat() / maxLines.toFloat()).coerceIn(0f, 1f)
-
-        val r = (255 - (ratio * (255 - 73))).toInt()
-        val g = (255 - (ratio * (255 - 156))).toInt()
-        val b = (255 - (ratio * (255 - 84))).toInt()
-
-        return String.format("#%02x%02x%02x", r, g, b)
+        labelStats.text = DiffTextRenderer.render(added, deleted, config, RenderContext.TOOLBAR)
     }
 
     private fun triggerUpdate() {
         val project = currentProject ?: return
-
-        // Cancel any pending scheduled task (debounce)
-        scheduledTask?.cancel(false)
-
-        ApplicationManager.getApplication().invokeLater {
-            loadingIcon.isVisible = true
-        }
-
-        val delay = mapOf(0 to 5000L, 1 to 2000L, 2 to 500L)[delayLevel] ?: 2000L
-
-        scheduledTask = scheduler.schedule({
-            if (project.isDisposed) return@schedule
-            val stats = calculateDiff(project, targetBranch)
-
-            targetAdded = stats.first
-            targetDeleted = stats.second
-
-            ApplicationManager.getApplication().invokeLater {
-                animationTimer.start()
-                loadingIcon.isVisible = false
-            }
-        }, delay, TimeUnit.MILLISECONDS)
+        DiffDataService.getInstance(project).triggerUpdate()
     }
 
     private fun showConfigPopup(anchor: JComponent) {
@@ -169,77 +119,207 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
             border = JBUI.Borders.empty(15)
         }
 
-        val formPanel = JPanel(GridLayout(2, 2, 8, 8))
-        formPanel.add(JBLabel("Comparative branch :"))
-        val txtTarget = JBTextField(targetBranch)
-        formPanel.add(txtTarget)
+        // Live Preview Panel
+        val previewPanel = JPanel(BorderLayout()).apply {
+            border = TitledBorder("📺 LIVE PREVIEW")
+        }
+        val previewLabel = JBLabel(DiffTextRenderer.render(targetAdded, targetDeleted, config, RenderContext.TOOLBAR))
+        previewLabel.horizontalAlignment = SwingConstants.CENTER
+        previewPanel.add(previewLabel, BorderLayout.CENTER)
+        
+        rootPanel.add(previewPanel)
+        rootPanel.add(Box.createVerticalStrut(10))
 
-        formPanel.add(JBLabel("Límite (Max):"))
-        val txtMaxLines = JBTextField(maxLines.toString())
-        formPanel.add(txtMaxLines)
+        // Basic Settings
+        val basicPanel = JPanel(GridLayout(2, 2, 8, 8)).apply {
+            border = TitledBorder("🔧 Basic Settings")
+        }
+        val txtTarget = JBTextField(config.targetBranch)
+        val txtMaxLines = JBTextField(config.maxLines.toString())
+        basicPanel.add(JBLabel("Target branch:"))
+        basicPanel.add(txtTarget)
+        basicPanel.add(JBLabel("Max lines threshold:"))
+        basicPanel.add(txtMaxLines)
+        rootPanel.add(basicPanel)
+        rootPanel.add(Box.createVerticalStrut(10))
 
-        rootPanel.add(formPanel)
-        rootPanel.add(Box.createVerticalStrut(15))
-
-        val delaySlider = JSlider(0, 2, delayLevel).apply {
+        // Display Format
+        val formatPanel = JPanel(GridLayout(1, 2, 8, 8)).apply {
+            border = TitledBorder("📐 Display Format")
+        }
+        val formatCombo = ComboBox(DisplayFormat.values())
+        formatCombo.selectedItem = config.displayFormat
+        formatPanel.add(JBLabel("Format:"))
+        formatPanel.add(formatCombo)
+        rootPanel.add(formatPanel)
+        rootPanel.add(Box.createVerticalStrut(10))
+        
+        // Update Triggers
+        val triggerPanel = JPanel(BorderLayout()).apply {
+            border = TitledBorder("⚡ Update Triggers")
+        }
+        val delaySlider = JSlider(0, 2, config.delayLevel).apply {
             val labels = Hashtable<Int, JLabel>()
             labels[0] = JLabel("slow 🐢"); labels[1] = JLabel("medium 😐"); labels[2] = JLabel("fast ⚡")
             labelTable = labels; paintLabels = true; snapToTicks = true
         }
-        rootPanel.add(JBLabel("Refresh time :").apply { alignmentX = Component.CENTER_ALIGNMENT })
-        rootPanel.add(delaySlider)
+        triggerPanel.add(JBLabel("Refresh delay:"), BorderLayout.NORTH)
+        triggerPanel.add(delaySlider, BorderLayout.CENTER)
+        rootPanel.add(triggerPanel)
+        rootPanel.add(Box.createVerticalStrut(10))
+
+        // Actions Panel (Import/Export)
+        val actionsPanel = JPanel(FlowLayout(FlowLayout.CENTER, 10, 0))
+        val exportBtn = JButton("📤 Export JSON").apply {
+            addActionListener { exportConfig() }
+        }
+        val importBtn = JButton("📥 Import JSON").apply {
+            addActionListener { importConfig() }
+        }
+        actionsPanel.add(exportBtn)
+        actionsPanel.add(importBtn)
+        rootPanel.add(actionsPanel)
+
+        // Live Preview Updater
+        val updatePreview = {
+            var hasError = false
+            
+            // Validate Target Branch
+            val branch = txtTarget.text.trim()
+            if (branch.isEmpty()) {
+                txtTarget.putClientProperty("JComponent.outline", "error")
+                txtTarget.toolTipText = "Target branch cannot be empty"
+                hasError = true
+            } else {
+                txtTarget.putClientProperty("JComponent.outline", null)
+                txtTarget.toolTipText = null
+            }
+
+            // Validate Max Lines
+            val parsedLines = txtMaxLines.text.toIntOrNull()
+            if (parsedLines == null || parsedLines <= 0) {
+                txtMaxLines.putClientProperty("JComponent.outline", "error")
+                txtMaxLines.toolTipText = "Max lines must be a positive integer"
+                hasError = true
+            } else {
+                txtMaxLines.putClientProperty("JComponent.outline", null)
+                txtMaxLines.toolTipText = null
+            }
+
+            if (!hasError) {
+                val tempConfig = config.copy()
+                tempConfig.targetBranch = branch
+                tempConfig.maxLines = parsedLines!!
+                tempConfig.delayLevel = delaySlider.value
+                tempConfig.displayFormat = formatCombo.selectedItem as DisplayFormat
+                previewLabel.text = DiffTextRenderer.render(targetAdded, targetDeleted, tempConfig, RenderContext.TOOLBAR)
+            }
+        }
+
+        // Add listeners to trigger live preview
+        txtMaxLines.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+        })
+        txtTarget.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
+        })
+        formatCombo.addActionListener { updatePreview() }
 
         JBPopupFactory.getInstance()
             .createComponentPopupBuilder(rootPanel, txtTarget)
-            .setTitle("DiffFrog Config")
+            .setTitle("🐸 DiffFrog Configuration")
             .setRequestFocus(true)
             .addListener(object : JBPopupListener {
                 override fun onClosed(event: LightweightWindowEvent) {
-                    targetBranch = txtTarget.text.trim().ifEmpty { "develop" }
-                    maxLines = txtMaxLines.text.toIntOrNull() ?: 420
-                    delayLevel = delaySlider.value
-                    triggerUpdate()
+                    config.targetBranch = txtTarget.text.trim().ifEmpty { "develop" }
+                    config.maxLines = txtMaxLines.text.toIntOrNull() ?: 420
+                    config.delayLevel = delaySlider.value
+                    config.displayFormat = formatCombo.selectedItem as DisplayFormat
+                    DiffFrogConfigService.getInstance().saveConfig(config)
+                    triggerUpdate() 
                 }
             })
             .createPopup().showUnderneathOf(anchor)
     }
 
-    private fun calculateDiff(project: Project, bA: String): Pair<Int, Int> {
-        val repository = GitRepositoryManager.getInstance(project).repositories.firstOrNull() ?: return Pair(0, 0)
-        var added = 0; var deleted = 0
-        try {
-            val handler = GitLineHandler(project, repository.root, GitCommand.DIFF)
-            handler.addParameters(bA, "--numstat")
-            val result = Git.getInstance().runCommand(handler)
-            result.output.forEach { line ->
-                val parts = line.trim().split(Regex("\\s+"))
-                if (parts.size >= 2) {
-                    added += parts[0].toIntOrNull() ?: 0
-                    deleted += parts[1].toIntOrNull() ?: 0
-                }
-            }
-        } catch (e: Exception) { }
-        return Pair(added, deleted)
+    private fun exportConfig() {
+        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
+        descriptor.title = "Select Folder to Export DiffFrog Config"
+        
+        val homeDir = VfsUtil.getUserHomeDir()
+        
+        FileChooser.chooseFile(descriptor, currentProject, homeDir) { file ->
+            val exportPath = Paths.get(file.path, "difffrog_config.json")
+            val json = DiffFrogConfigService.getInstance().exportToJson(config)
+            exportPath.writeText(json)
+            
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("DiffFrog")
+                ?.createNotification("Config exported to ${exportPath.fileName}", NotificationType.INFORMATION)
+                ?.notify(currentProject) ?: com.intellij.openapi.ui.Messages.showInfoMessage("Config exported to ${exportPath.fileName}", "DiffFrog")
+        }
     }
+
+    private fun importConfig() {
+        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("json")
+        descriptor.title = "Select DiffFrog Config JSON"
+        
+        val homeDir = VfsUtil.getUserHomeDir()
+        
+        FileChooser.chooseFile(descriptor, currentProject, homeDir) { file ->
+            try {
+                val json = Paths.get(file.path).readText()
+                val imported = DiffFrogConfigService.getInstance().importFromJson(json)
+                if (imported != null) {
+                    config = imported
+                    DiffFrogConfigService.getInstance().saveConfig(config)
+                    triggerUpdate()
+                    
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("DiffFrog")
+                        ?.createNotification("Config imported successfully", NotificationType.INFORMATION)
+                        ?.notify(currentProject) ?: com.intellij.openapi.ui.Messages.showInfoMessage("Config imported successfully", "DiffFrog")
+                } else {
+                    com.intellij.openapi.ui.Messages.showErrorDialog("Invalid JSON format", "Import Error")
+                }
+            } catch (e: Exception) {
+                com.intellij.openapi.ui.Messages.showErrorDialog("Error reading file: ${e.message}", "Import Error")
+            }
+        }
+    }
+
+
 
     override fun update(e: AnActionEvent) {
         currentProject = e.project
         val project = currentProject ?: return
 
         if (isListenerRegistered.compareAndSet(false, true)) {
-            // Register document listener with project as disposable for proper lifecycle
-            EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
-                override fun documentChanged(event: DocumentEvent) = triggerUpdate()
-            }, project)
+            val connection = project.messageBus.connect(project as Disposable)
+            connection.subscribe(DiffUpdateListener.TOPIC, object : DiffUpdateListener {
+                override fun onDiffUpdated(added: Int, deleted: Int) {
+                    targetAdded = added
+                    targetDeleted = deleted
+                    ApplicationManager.getApplication().invokeLater {
+                        animationTimer.start()
+                    }
+                }
+            })
+            
+            // Initial sync
+            val dataService = DiffDataService.getInstance(project)
+            targetAdded = dataService.targetAdded
+            targetDeleted = dataService.targetDeleted
+            animationTimer.start()
 
-            // Cancel scheduled tasks when the project is disposed
             Disposer.register(project as Disposable) {
-                scheduledTask?.cancel(false)
                 animationTimer.stop()
                 isListenerRegistered.set(false)
             }
-
-            triggerUpdate()
         }
     }
 
