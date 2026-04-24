@@ -169,13 +169,23 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         rootPanel.add(Box.createVerticalStrut(10))
 
         // Display Format
-        val formatPanel = JPanel(GridLayout(1, 2, 8, 8)).apply {
+        val formatPanel = JPanel(BorderLayout(8, 8)).apply {
             border = TitledBorder("📐 Display Format")
         }
         val formatCombo = ComboBox(DisplayFormat.values())
         formatCombo.selectedItem = config.displayFormat
-        formatPanel.add(JBLabel("Format:"))
-        formatPanel.add(formatCombo)
+        
+        val formatControls = JPanel(FlowLayout(FlowLayout.LEFT, 5, 0))
+        formatControls.add(JBLabel("Format:"))
+        formatControls.add(formatCombo)
+        
+        val formatWarningLabel = JBLabel("⚠️ Requires IDE restart to apply changes").apply {
+            foreground = com.intellij.ui.JBColor.RED
+            isVisible = false
+        }
+        
+        formatPanel.add(formatControls, BorderLayout.CENTER)
+        formatPanel.add(formatWarningLabel, BorderLayout.SOUTH)
         rootPanel.add(formatPanel)
         rootPanel.add(Box.createVerticalStrut(10))
         
@@ -246,6 +256,9 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
                 tempConfig.maxLines = parsedLines!!
                 tempConfig.delayLevel = delaySlider.value
                 tempConfig.displayFormat = formatCombo.selectedItem as DisplayFormat
+                
+                formatWarningLabel.isVisible = tempConfig.displayFormat != config.displayFormat
+                
                 previewLabel.text = DiffTextRenderer.render(targetAdded, targetDeleted, tempConfig, RenderContext.TOOLBAR)
             }
         }
