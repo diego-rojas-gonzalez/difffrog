@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.Presentation
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ex.ApplicationManagerEx
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -88,6 +89,7 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
 
     private var currentProject: Project? = null
     private val isListenerRegistered = AtomicBoolean(false)
+    private var configPopup: com.intellij.openapi.ui.popup.JBPopup? = null
 
     override fun createCustomComponent(presentation: Presentation, place: String): JComponent {
         val panel = JPanel(GridBagLayout())
@@ -114,10 +116,33 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
     }
 
     private fun showConfigPopup(anchor: JComponent) {
+        // Si ya hay un popup abierto, cerrarlo (toggle)
+        configPopup?.let {
+            if (it.isVisible) {
+                it.cancel()
+                return
+            }
+        }
+
         val rootPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(15)
         }
+
+        // Header row con botón X para cerrar
+        val headerPanel = JPanel(BorderLayout()).apply { isOpaque = false }
+        val closeBtn = JButton("✕").apply {
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            toolTipText = "Cerrar"
+            preferredSize = Dimension(24, 24)
+        }
+        headerPanel.add(closeBtn, BorderLayout.EAST)
+        rootPanel.add(headerPanel)
+        rootPanel.add(Box.createVerticalStrut(9))
+
 
         // Live Preview Panel
         val previewPanel = JPanel(BorderLayout()).apply {
@@ -168,7 +193,7 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         rootPanel.add(triggerPanel)
         rootPanel.add(Box.createVerticalStrut(10))
 
-        // Actions Panel (Import/Export)
+        // Import/Export Panel
         val actionsPanel = JPanel(FlowLayout(FlowLayout.CENTER, 10, 0))
         val exportBtn = JButton("📤 Export JSON").apply {
             addActionListener { exportConfig() }
@@ -179,6 +204,15 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         actionsPanel.add(exportBtn)
         actionsPanel.add(importBtn)
         rootPanel.add(actionsPanel)
+        rootPanel.add(Box.createVerticalStrut(8))
+
+        // Save Button (fila propia)
+        val savePanel = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0))
+        val saveBtn = JButton("💾 Save and Reload").apply {
+            preferredSize = Dimension(160, 32)
+        }
+        savePanel.add(saveBtn)
+        rootPanel.add(savePanel)
 
         // Live Preview Updater
         val updatePreview = {
@@ -229,21 +263,61 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         })
         formatCombo.addActionListener { updatePreview() }
 
-        JBPopupFactory.getInstance()
+        val popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(rootPanel, txtTarget)
             .setTitle("🐸 DiffFrog Configuration")
             .setRequestFocus(true)
             .addListener(object : JBPopupListener {
                 override fun onClosed(event: LightweightWindowEvent) {
-                    config.targetBranch = txtTarget.text.trim().ifEmpty { "develop" }
-                    config.maxLines = txtMaxLines.text.toIntOrNull() ?: 420
-                    config.delayLevel = delaySlider.value
-                    config.displayFormat = formatCombo.selectedItem as DisplayFormat
-                    DiffFrogConfigService.getInstance().saveConfig(config)
-                    triggerUpdate() 
+                    // El guardado es explícito vía el botón Guardar
+                    configPopup = null
+                    triggerUpdate()
                 }
             })
-            .createPopup().showUnderneathOf(anchor)
+            .createPopup()
+
+        configPopup = popup
+        closeBtn.addActionListener { popup.cancel() }
+
+        saveBtn.addActionListener {
+            // 1. Validar campos
+            val branch = txtTarget.text.trim()
+            val parsedLines = txtMaxLines.text.toIntOrNull()
+            if (branch.isEmpty() || parsedLines == null || parsedLines <= 0) {
+                JOptionPane.showMessageDialog(
+                    saveBtn,
+                    "Por favor corrige los errores antes de guardar.",
+                    "Configuración inválida",
+                    JOptionPane.ERROR_MESSAGE
+                )
+                return@addActionListener
+            }
+
+            // 2. Modal de confirmación con aviso de reinicio
+            val result = JOptionPane.showConfirmDialog(
+                saveBtn,
+                "Los cambios se guardarán y el IDE se reiniciará para aplicarlos.\n¿Deseas continuar?",
+                "Reinicio del IDE requerido",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            )
+
+            if (result == JOptionPane.OK_OPTION) {
+                // 3. Guardar config
+                config.targetBranch = branch
+                config.maxLines = parsedLines
+                config.delayLevel = delaySlider.value
+                config.displayFormat = formatCombo.selectedItem as DisplayFormat
+                DiffFrogConfigService.getInstance().saveConfig(config)
+
+                // 4. Cerrar popup
+                popup.cancel()
+
+                // 5. Reiniciar IDE
+                ApplicationManagerEx.getApplicationEx().restart(true)
+            }
+        }
+        popup.showInCenterOf(anchor)
     }
 
     private fun exportConfig() {
