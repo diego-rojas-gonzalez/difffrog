@@ -156,17 +156,49 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
         rootPanel.add(Box.createVerticalStrut(10))
 
         // Basic Settings
-        val basicPanel = JPanel(GridLayout(2, 2, 8, 8)).apply {
+        val basicPanel = JPanel(BorderLayout(8, 0)).apply {
             border = TitledBorder("🔧 Basic Settings")
         }
+        val fieldsPanel = JPanel(GridLayout(2, 2, 8, 8))
         val txtTarget = JBTextField(config.targetBranch)
         val txtMaxLines = JBTextField(config.maxLines.toString())
-        basicPanel.add(JBLabel("Target branch:"))
-        basicPanel.add(txtTarget)
-        basicPanel.add(JBLabel("Max lines threshold:"))
-        basicPanel.add(txtMaxLines)
+        fieldsPanel.add(JBLabel("Target branch:"))
+        fieldsPanel.add(txtTarget)
+        fieldsPanel.add(JBLabel("Max lines threshold:"))
+        fieldsPanel.add(txtMaxLines)
+        
+        val requiresApplyYourChangesLabel = JBLabel("(*) Requires Apply Changes").apply {
+            foreground = com.intellij.ui.JBColor.RED
+            isVisible = false
+        }
+        val applyBasicBtn = JButton("Apply 🐸").apply {
+            isVisible = false
+            toolTipText = "Apply changes immediately without restarting"
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            alignmentX = java.awt.Component.CENTER_ALIGNMENT
+        }
+        
+
+        basicPanel.add(fieldsPanel, BorderLayout.CENTER)
         rootPanel.add(basicPanel)
         rootPanel.add(Box.createVerticalStrut(10))
+
+        // Update Triggers
+        val triggerPanel = JPanel(BorderLayout()).apply {
+            border = TitledBorder("⚡ Update Triggers")
+        }
+        val delaySlider = JSlider(0, 2, config.delayLevel).apply {
+            val labels = Hashtable<Int, JLabel>()
+            labels[0] = JLabel("slow 🐢"); labels[1] = JLabel("medium 😐"); labels[2] = JLabel("fast ⚡")
+            labelTable = labels; paintLabels = true; snapToTicks = true
+        }
+        triggerPanel.add(JBLabel("Refresh delay:"), BorderLayout.NORTH)
+        triggerPanel.add(delaySlider, BorderLayout.CENTER)
+        rootPanel.add(triggerPanel)
+        rootPanel.add(Box.createVerticalStrut(10))
+        rootPanel.add(requiresApplyYourChangesLabel)
+        rootPanel.add(Box.createVerticalStrut(10))
+        rootPanel.add(applyBasicBtn)
 
         // Display Format
         val formatPanel = JPanel(BorderLayout(8, 8)).apply {
@@ -184,24 +216,12 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
             isVisible = false
         }
         
+        
         formatPanel.add(formatControls, BorderLayout.CENTER)
         formatPanel.add(formatWarningLabel, BorderLayout.SOUTH)
         rootPanel.add(formatPanel)
         rootPanel.add(Box.createVerticalStrut(10))
-        
-        // Update Triggers
-        val triggerPanel = JPanel(BorderLayout()).apply {
-            border = TitledBorder("⚡ Update Triggers")
-        }
-        val delaySlider = JSlider(0, 2, config.delayLevel).apply {
-            val labels = Hashtable<Int, JLabel>()
-            labels[0] = JLabel("slow 🐢"); labels[1] = JLabel("medium 😐"); labels[2] = JLabel("fast ⚡")
-            labelTable = labels; paintLabels = true; snapToTicks = true
-        }
-        triggerPanel.add(JBLabel("Refresh delay:"), BorderLayout.NORTH)
-        triggerPanel.add(delaySlider, BorderLayout.CENTER)
-        rootPanel.add(triggerPanel)
-        rootPanel.add(Box.createVerticalStrut(10))
+    
 
         // Import/Export Panel
         val actionsPanel = JPanel(FlowLayout(FlowLayout.CENTER, 10, 0))
@@ -259,8 +279,24 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
                 
                 formatWarningLabel.isVisible = tempConfig.displayFormat != config.displayFormat
                 
+                val basicChanged = branch != config.targetBranch || parsedLines != config.maxLines || delaySlider.value != config.delayLevel
+                applyBasicBtn.isVisible = basicChanged
+                
                 previewLabel.text = DiffTextRenderer.render(targetAdded, targetDeleted, tempConfig, RenderContext.TOOLBAR)
             }
+        }
+        
+        applyBasicBtn.addActionListener {
+            val branch = txtTarget.text.trim()
+            val parsedLines = txtMaxLines.text.toIntOrNull() ?: return@addActionListener
+            
+            config.targetBranch = branch
+            config.maxLines = parsedLines
+            config.delayLevel = delaySlider.value
+            DiffFrogConfigService.getInstance().saveConfig(config)
+            
+            triggerUpdate()
+            updatePreview()
         }
 
         // Add listeners to trigger live preview
@@ -275,6 +311,7 @@ class GitDiffToolbarAction : AnAction(), CustomComponentAction {
             override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = updatePreview()
         })
         formatCombo.addActionListener { updatePreview() }
+        delaySlider.addChangeListener { updatePreview() }
 
         val popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(rootPanel, txtTarget)
