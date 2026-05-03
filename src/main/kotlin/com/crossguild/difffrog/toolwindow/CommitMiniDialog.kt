@@ -46,7 +46,10 @@ class CommitMiniDialog(
             toolTipText = "Clear draft"
             isBorderPainted = false; isContentAreaFilled = false
             font = font.deriveFont(16f)
-            addActionListener { wizard.clearDraft() }
+            addActionListener {
+                wizard.clearDraft()
+                previewArea.text = ""  // blank preview, not "im a vibe frogger"
+            }
         }
         val previewScroll = JBScrollPane(previewArea).apply {
             preferredSize = Dimension(0, 80)
@@ -69,6 +72,11 @@ class CommitMiniDialog(
     }
 
     override fun getPreferredFocusedComponent(): JComponent = wizard
+
+    override fun show() {
+        super.show()
+        wizard.requestInitialFocus()
+    }
 
     fun prefillMessage(text: String) {
         if (text.isNotBlank()) previewArea.text = text

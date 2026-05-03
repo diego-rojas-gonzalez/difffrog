@@ -111,8 +111,22 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
 
                 val discardItem = JMenuItem("Discard this change \ud83d\udc38")
                 discardItem.addActionListener {
-                    com.intellij.openapi.vcs.changes.ui.RollbackWorker(project, "Discard", false)
-                        .doRollback(listOf(change), true)
+                    val vFile = change.virtualFile
+                    val isUnversioned = change.beforeRevision == null && change.afterRevision != null
+                    if (isUnversioned && vFile != null) {
+                        // Unversioned file: just delete it from disk
+                        com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
+                            try { vFile.delete(this) } catch (_: Exception) {}
+                        }
+                    } else {
+                        // Tracked change: roll back via VCS
+                        com.intellij.openapi.vcs.changes.ui.RollbackWorker(project, "Discard", false)
+                            .doRollback(listOf(change), true)
+                    }
+                    // Refresh the list after a short delay to let VCS state settle
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        refreshChanges(listModel)
+                    }
                 }
 
                 val path = change.virtualFile?.path ?: change.beforeRevision?.file?.path ?: ""
@@ -177,7 +191,18 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         toolbarPanel.add(unstageBtn)
 
         // ---- Commit Button (opens wizard dialog) ----
-        val commitBtn = JButton("🐸  Commit Selected")
+        val commitBtn = JButton("\ud83d\udc38  Commit Selected")
+        commitBtn.isEnabled = false
+        // Update enabled state whenever list model changes
+        fun updateCommitBtn() {
+            commitBtn.isEnabled = listModel.elements().toList().any { it.isSelected }
+        }
+        listModel.addListDataListener(object : javax.swing.event.ListDataListener {
+            override fun intervalAdded(e: javax.swing.event.ListDataEvent) = updateCommitBtn()
+            override fun intervalRemoved(e: javax.swing.event.ListDataEvent) = updateCommitBtn()
+            override fun contentsChanged(e: javax.swing.event.ListDataEvent) = updateCommitBtn()
+        })
+
         commitBtn.addActionListener {
             val selectedItems = listModel.elements().toList()
                 .filter { it.isSelected }
