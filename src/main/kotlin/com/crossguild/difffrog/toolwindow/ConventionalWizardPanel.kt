@@ -266,7 +266,9 @@ class ScopeStep(
     private val onAdvance: (skip: Boolean) -> Unit,
     private val onChanged: () -> Unit
 ) : JPanel(BorderLayout()) {
-    private val field = JBTextField()
+    private val field = JBTextField().apply {
+        border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+    }
     private val suggChips = suggestions.map { ChipButton(it) }
     private var suggIdx = 0
     val scopeText get() = field.text.trim()
@@ -328,7 +330,9 @@ class DescriptionStep(
     private val onAdvance: (skip: Boolean) -> Unit,
     private val onChanged: () -> Unit
 ) : JPanel(BorderLayout()) {
-    private val field = JBTextField()
+    private val field = JBTextField().apply {
+        border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+    }
     private val bar = JProgressBar(0, 72)
     private val charLbl = JLabel("0 / 72")
     val descText get() = field.text.trim()
@@ -368,7 +372,9 @@ class BodyStep(
     private val onAdvance: (skip: Boolean) -> Unit,
     private val onChanged: () -> Unit
 ) : JPanel(BorderLayout()) {
-    private val area = JBTextArea(4, 40)
+    private val area = JBTextArea(4, 40).apply {
+        border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+    }
     val bodyText get() = area.text.trim()
     private val suggs = listOf("Reviewed-by: ", "Required-by: ", "Suggested-by: ", "BREAKING CHANGE: ")
     private val suggChips = suggs.map { ChipButton(it) }
@@ -446,19 +452,15 @@ fun simpleListener(action: () -> Unit) = object : DocumentListener {
 class ConventionalWizardPanel(
     private val project: Project,
     private val changes: List<Change>,
-    private val onStateChanged: (WizardState) -> Unit
+    private val onStateChanged: (WizardState) -> Unit,
+    private val onStepChanged: (Int) -> Unit = {},
+    private val onFinish: () -> Unit = {}
 ) : JPanel(BorderLayout()) {
 
     private var state = WizardState()
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout).also { it.isOpaque = false }
     private val actionBtn = JButton("Skip ↓")
-    private val progressBar = JProgressBar(1, 4).apply {
-        isStringPainted = true
-        string = "Step 1 of 4"
-        preferredSize = Dimension(120, 16)
-        isOpaque = false
-    }
     private val hintLbl = JLabel("Tab to continue  ·  hjkl / arrows to navigate").also {
         it.font = it.font.deriveFont(Font.ITALIC, 11f)
         it.foreground = JBColor.GRAY
@@ -514,12 +516,16 @@ class ConventionalWizardPanel(
         cardPanel.add(typeStep, "1"); cardPanel.add(scopeStep, "2")
         cardPanel.add(descStep, "3"); cardPanel.add(bodyStep, "4")
 
-        val header = JPanel(BorderLayout()).also { it.isOpaque = false; it.border = JBUI.Borders.empty(0,0,6,0) }
-        header.add(progressBar, BorderLayout.WEST)
-
         val backBtn = JButton("← Back").apply {
             setFocusTraversalKeysEnabled(false)
             addActionListener { goBack() }
+        }
+        val trashBtn = JButton("🗑").apply {
+            toolTipText = "Clear draft"
+            isBorderPainted = false; isContentAreaFilled = false
+            font = font.deriveFont(16f)
+            addActionListener { clearDraft() }
+            setFocusTraversalKeysEnabled(false)
         }
 
         actionBtn.setFocusTraversalKeysEnabled(false)
@@ -533,13 +539,16 @@ class ConventionalWizardPanel(
         }
 
         val navRow = JPanel(BorderLayout(6,0)).also { it.isOpaque = false }
-        navRow.add(backBtn, BorderLayout.WEST)
+        val leftActions = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).also { it.isOpaque = false }
+        leftActions.add(backBtn)
+        leftActions.add(trashBtn)
+        navRow.add(leftActions, BorderLayout.WEST)
         navRow.add(actionBtn, BorderLayout.EAST)
 
         val bottom = JPanel(BorderLayout()).also { it.isOpaque = false; it.border = JBUI.Borders.empty(6,0,0,0) }
         bottom.add(hintLbl, BorderLayout.WEST); bottom.add(navRow, BorderLayout.EAST)
 
-        add(header, BorderLayout.NORTH); add(cardPanel, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
+        add(cardPanel, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
     }
 
     private fun advance(fromStep: Int, value: Any?, skip: Boolean) {
@@ -553,7 +562,7 @@ class ConventionalWizardPanel(
         WizardDraftStore.save(project, state)
         onStateChanged(state)
         cardLayout.show(cardPanel, state.step.toString())
-        updateProgress()
+        onStepChanged(state.step)
         updateButtonLabel()
         SwingUtilities.invokeLater {
             when (state.step) {
@@ -567,11 +576,7 @@ class ConventionalWizardPanel(
         state = state.copy(body = if (skip) null else bodyStep.bodyText.takeIf { it.isNotBlank() })
         WizardDraftStore.save(project, state)
         onStateChanged(state)
-    }
-
-    private fun updateProgress() {
-        progressBar.value = state.step
-        progressBar.string = "Step ${state.step} of 4"
+        onFinish()
     }
 
     private fun updateButtonLabel() {
@@ -580,9 +585,15 @@ class ConventionalWizardPanel(
             3 -> descStep.hasContent(); 4 -> bodyStep.hasContent()
             else -> false
         }
+        actionBtn.isVisible = state.step != 1 && state.step != 4
+        
+        if (state.step == 4) {
+            hintLbl.text = "Enter / Tab to Finish 🐸"
+        } else {
+            hintLbl.text = "Tab to continue  ·  hjkl / arrows to navigate"
+        }
+
         actionBtn.text = when {
-            state.step == 4 && hasContent -> "Finish 🐸"
-            state.step == 4 -> "Skip ↓"
             hasContent -> "Continue →"
             else -> "Skip ↓"
         }
@@ -592,7 +603,8 @@ class ConventionalWizardPanel(
         if (state.step <= 1) return
         state = state.copy(step = state.step - 1)
         cardLayout.show(cardPanel, state.step.toString())
-        updateProgress(); updateButtonLabel()
+        onStepChanged(state.step)
+        updateButtonLabel()
         SwingUtilities.invokeLater {
             when (state.step) {
                 1 -> typeStep.focus(); 2 -> scopeStep.focus(); 3 -> descStep.focus()
@@ -606,7 +618,8 @@ class ConventionalWizardPanel(
         state = WizardState()
         typeStep.reset(); scopeStep.reset(); descStep.reset(); bodyStep.reset()
         cardLayout.show(cardPanel, "1")
-        updateProgress(); updateButtonLabel()
+        onStepChanged(state.step)
+        updateButtonLabel()
         // Do NOT call onStateChanged — preview should just go blank
         SwingUtilities.invokeLater { typeStep.focus() }
     }

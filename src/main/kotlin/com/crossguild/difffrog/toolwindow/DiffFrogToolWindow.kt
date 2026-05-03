@@ -48,7 +48,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         // --- LEFT: File List + Inline Commit ---
         val leftPanel = JPanel(BorderLayout())
         val listModel = DefaultListModel<ChangeItem>()
-
+// other shi 
         // ---- File list with fixed checkbox on right ----
         val fileList = object : JBList<ChangeItem>(listModel) {
             override fun getScrollableTracksViewportWidth(): Boolean = false

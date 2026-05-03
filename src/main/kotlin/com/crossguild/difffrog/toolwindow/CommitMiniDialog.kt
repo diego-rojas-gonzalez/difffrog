@@ -15,6 +15,8 @@ import java.awt.Font
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.JProgressBar
+import javax.swing.Action
 
 class CommitMiniDialog(
     private val project: Project,
@@ -29,6 +31,13 @@ class CommitMiniDialog(
         emptyText.text = "commit preview will appear here..."
     }
 
+    private val progressBar = JProgressBar(1, 4).apply {
+        isStringPainted = false
+        preferredSize = Dimension(Int.MAX_VALUE, 4)
+        isOpaque = false
+        border = null
+    }
+
     private lateinit var wizard: ConventionalWizardPanel
 
     init {
@@ -36,35 +45,36 @@ class CommitMiniDialog(
         init()
     }
 
+    override fun createActions(): Array<Action> = emptyArray()
+
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(BorderLayout())
         panel.border = JBUI.Borders.empty(10)
         panel.preferredSize = Dimension(460, 420)
 
-        // ── Top: preview + clear button ──────────────────────────────────────
-        val clearBtn = JButton("🗑").apply {
-            toolTipText = "Clear draft"
-            isBorderPainted = false; isContentAreaFilled = false
-            font = font.deriveFont(16f)
-            addActionListener {
-                wizard.clearDraft()
-                previewArea.text = ""  // blank preview, not "im a vibe frogger"
-            }
-        }
+        // ── Top: Progress bar + Preview ──────────────────────────────────────
         val previewScroll = JBScrollPane(previewArea).apply {
             preferredSize = Dimension(0, 80)
-            border = JBUI.Borders.customLine(com.intellij.ui.JBColor.border(), 1)
+            border = null
         }
         val topRow = JPanel(BorderLayout(4, 0)).apply {
             isOpaque = false
+            add(progressBar, BorderLayout.NORTH)
             add(previewScroll, BorderLayout.CENTER)
-            add(clearBtn, BorderLayout.EAST)
         }
 
         // ── Middle: wizard ───────────────────────────────────────────────────
-        wizard = ConventionalWizardPanel(project, selectedChanges) { state ->
-            previewArea.text = state.buildMessage()
-        }
+        wizard = ConventionalWizardPanel(
+            project, 
+            selectedChanges,
+            onStateChanged = { state -> previewArea.text = state.buildMessage() },
+            onStepChanged = { step -> progressBar.value = step },
+            onFinish = {
+                executeCommit()
+                wizard.clearDraft()
+                close(OK_EXIT_CODE)
+            }
+        )
 
         panel.add(topRow, BorderLayout.NORTH)
         panel.add(wizard, BorderLayout.CENTER)
