@@ -210,7 +210,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             if (selectedItems.isNotEmpty()) {
                 val dialog = CommitMiniDialog(project, selectedItems)
                 if (dialog.showAndGet()) {
-                    dialog.executeCommit()
+                    // Commit already executed inside dialog before closing
                     refreshChanges(listModel)
                 }
             } else {
