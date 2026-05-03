@@ -56,7 +56,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         fileList.setExpandableItemsEnabled(false)
         fileList.cellRenderer = ChangeItemRenderer(project)
         fileList.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        fileList.setEmptyText("No hay cambios pendientes 🐸")
+        fileList.setEmptyText("No changes bro... ? get help")
 
         // Click on checkbox, double-click to open, right-click for context menu
         fileList.addMouseListener(object : MouseAdapter() {
