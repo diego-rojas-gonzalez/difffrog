@@ -176,38 +176,16 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         toolbarPanel.add(stageBtn)
         toolbarPanel.add(unstageBtn)
 
-        // ---- Inline Commit Area ----
-        val commitArea = JBTextArea(3, 30)
-        commitArea.lineWrap = true
-        commitArea.wrapStyleWord = true
-        commitArea.emptyText.text = "Commit message... 🐸"
-        val commitScrollPane = JBScrollPane(commitArea)
-        commitScrollPane.preferredSize = Dimension(0, 72)
-
+        // ---- Commit Button (opens wizard dialog) ----
         val commitBtn = JButton("🐸  Commit Selected")
-        commitBtn.isEnabled = false
-        commitBtn.maximumSize = Dimension(Int.MAX_VALUE, commitBtn.preferredSize.height)
-
-        commitArea.document.addDocumentListener(object : DocumentListener {
-            private fun update() {
-                commitBtn.isEnabled = commitArea.text.isNotBlank()
-            }
-            override fun insertUpdate(e: DocumentEvent) = update()
-            override fun removeUpdate(e: DocumentEvent) = update()
-            override fun changedUpdate(e: DocumentEvent) = update()
-        })
-
         commitBtn.addActionListener {
             val selectedItems = listModel.elements().toList()
                 .filter { it.isSelected }
                 .map { it.change }
             if (selectedItems.isNotEmpty()) {
                 val dialog = CommitMiniDialog(project, selectedItems)
-                // Pre-fill the dialog with what's already typed
-                dialog.prefillMessage(commitArea.text.trim())
                 if (dialog.showAndGet()) {
                     dialog.executeCommit()
-                    commitArea.text = ""
                     refreshChanges(listModel)
                 }
             } else {
@@ -215,15 +193,10 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             }
         }
 
-        val inlineCommitPanel = JPanel(BorderLayout(0, 2))
-        inlineCommitPanel.border = JBUI.Borders.empty(4, 0, 0, 0)
-        inlineCommitPanel.add(commitScrollPane, BorderLayout.CENTER)
-        inlineCommitPanel.add(commitBtn, BorderLayout.SOUTH)
-
         // ---- Assemble left panel ----
         leftPanel.add(toolbarPanel, BorderLayout.NORTH)
         leftPanel.add(fileScrollPane, BorderLayout.CENTER)
-        leftPanel.add(inlineCommitPanel, BorderLayout.SOUTH)
+        leftPanel.add(commitBtn, BorderLayout.SOUTH)
 
         // ---- Splitter ----
         val splitter = JBSplitter(false, 0.3f)
