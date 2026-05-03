@@ -57,7 +57,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         fileList.cellRenderer = ChangeItemRenderer(project)
         fileList.selectionMode = ListSelectionModel.SINGLE_SELECTION
         fileList.setEmptyText("No changes bro... ? get help")
-
+        //for git frog test
         // Click on checkbox, double-click to open, right-click for context menu
         fileList.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
