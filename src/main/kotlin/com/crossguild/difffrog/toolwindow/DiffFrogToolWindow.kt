@@ -53,6 +53,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         val fileList = object : JBList<ChangeItem>(listModel) {
             override fun getScrollableTracksViewportWidth(): Boolean = false
         }
+        fileList.setExpandableItemsEnabled(false)
         fileList.cellRenderer = ChangeItemRenderer(project)
         fileList.selectionMode = ListSelectionModel.SINGLE_SELECTION
         fileList.setEmptyText("No hay cambios pendientes 🐸")
@@ -110,7 +111,8 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
 
                 val discardItem = JMenuItem("Discard this change \ud83d\udc38")
                 discardItem.addActionListener {
-                    RollbackChangesDialog.rollbackChanges(project, listOf(change))
+                    com.intellij.openapi.vcs.changes.ui.RollbackWorker(project, "Discard", false)
+                        .doRollback(listOf(change), true)
                 }
 
                 val path = change.virtualFile?.path ?: change.beforeRevision?.file?.path ?: ""
@@ -302,15 +304,21 @@ class ChangeItemRenderer(private val project: Project) : ListCellRenderer<Change
         add(checkBox, BorderLayout.CENTER)
     }
 
+    private val statusIconPanel = JPanel(BorderLayout()).apply {
+        isOpaque = true
+        border = com.intellij.util.ui.JBUI.Borders.empty(0, 4, 0, 4)
+        add(statusIconLabel, BorderLayout.CENTER)
+    }
+
     private val outerPanel = object : JPanel(null) {
         override fun getPreferredSize(): Dimension {
             val h = maxOf(
-                statusIconLabel.preferredSize.height,
+                statusIconPanel.preferredSize.height,
                 fileIconLabel.preferredSize.height,
                 nameLabel.preferredSize.height,
                 checkBoxPanel.preferredSize.height
             )
-            val intrinsicW = 4 + statusIconLabel.preferredSize.width + 4 + fileIconLabel.preferredSize.width + 4 + nameLabel.preferredSize.width + checkBoxPanel.preferredSize.width
+            val intrinsicW = statusIconPanel.preferredSize.width + fileIconLabel.preferredSize.width + 4 + nameLabel.preferredSize.width + checkBoxPanel.preferredSize.width
             val viewW = listRef?.visibleRect?.width ?: 0
             return Dimension(maxOf(intrinsicW, viewW), h + 4)
         }
@@ -319,16 +327,16 @@ class ChangeItemRenderer(private val project: Project) : ListCellRenderer<Change
             val h = height
             val r = listRef?.visibleRect ?: Rectangle(0, 0, width, height)
             
-            val stW = statusIconLabel.preferredSize.width
+            val stW = statusIconPanel.preferredSize.width
             val fileW = fileIconLabel.preferredSize.width
             val nameW = nameLabel.preferredSize.width
             val checkW = checkBoxPanel.preferredSize.width
 
             // Fixed on the left
-            statusIconLabel.setBounds(r.x + 4, (h - statusIconLabel.preferredSize.height) / 2, stW, statusIconLabel.preferredSize.height)
+            statusIconPanel.setBounds(r.x, 0, stW, h)
             
             // Scrollable in the middle
-            val startX = 4 + stW + 4
+            val startX = stW
             fileIconLabel.setBounds(startX, (h - fileIconLabel.preferredSize.height) / 2, fileW, fileIconLabel.preferredSize.height)
             nameLabel.setBounds(startX + fileW + 4, (h - nameLabel.preferredSize.height) / 2, nameW, nameLabel.preferredSize.height)
 
@@ -343,10 +351,11 @@ class ChangeItemRenderer(private val project: Project) : ListCellRenderer<Change
         checkBox.isOpaque = false
         checkBox.margin = Insets(0, 0, 0, 0)
         
-        outerPanel.add(statusIconLabel)
-        outerPanel.add(fileIconLabel)
-        outerPanel.add(nameLabel)
-        outerPanel.add(checkBoxPanel)
+        // Ensure fixed items are drawn on top of scrollable text by adding them first
+        outerPanel.add(statusIconPanel, 0)
+        outerPanel.add(checkBoxPanel, 1)
+        outerPanel.add(fileIconLabel, 2)
+        outerPanel.add(nameLabel, 3)
     }
 
     override fun getListCellRendererComponent(
@@ -392,11 +401,15 @@ class ChangeItemRenderer(private val project: Project) : ListCellRenderer<Change
         val fg = if (isSelected) list.selectionForeground else list.foreground
         outerPanel.background = bg
         nameLabel.foreground = fg
+        statusIconPanel.background = bg
         checkBoxPanel.background = bg
         checkBox.background = bg
 
         // Force layout calculations so the labels are positioned based on the current scroll
         outerPanel.doLayout()
+        
+        // Show genuine Swing tooltip with the full path on hover
+        outerPanel.toolTipText = relativePath
 
         return outerPanel
     }

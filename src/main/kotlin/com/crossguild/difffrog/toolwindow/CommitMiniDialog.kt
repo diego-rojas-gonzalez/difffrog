@@ -11,6 +11,8 @@ import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.Font
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -19,58 +21,69 @@ class CommitMiniDialog(
     private val selectedChanges: List<Change>
 ) : DialogWrapper(project, true) {
 
-    private val textArea = JBTextArea(5, 40)
+    private val previewArea = JBTextArea(4, 40).apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        font = font.deriveFont(Font.PLAIN, 12f)
+        emptyText.text = "commit preview will appear here..."
+    }
+
+    private lateinit var wizard: ConventionalWizardPanel
 
     init {
         title = "be careful with your changes!!! 🐸"
         init()
-        textArea.emptyText.text = "write your fuking commit message here..."
     }
 
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(BorderLayout())
         panel.border = JBUI.Borders.empty(10)
+        panel.preferredSize = Dimension(460, 420)
 
-        val scrollPane = JBScrollPane(textArea)
-        scrollPane.preferredSize = Dimension(400, 100)
-        panel.add(scrollPane, BorderLayout.CENTER)
-        
+        // ── Top: preview + clear button ──────────────────────────────────────
+        val clearBtn = JButton("🗑").apply {
+            toolTipText = "Clear draft"
+            isBorderPainted = false; isContentAreaFilled = false
+            font = font.deriveFont(16f)
+            addActionListener { wizard.clearDraft() }
+        }
+        val previewScroll = JBScrollPane(previewArea).apply {
+            preferredSize = Dimension(0, 80)
+            border = JBUI.Borders.customLine(com.intellij.ui.JBColor.border(), 1)
+        }
+        val topRow = JPanel(BorderLayout(4, 0)).apply {
+            isOpaque = false
+            add(previewScroll, BorderLayout.CENTER)
+            add(clearBtn, BorderLayout.EAST)
+        }
+
+        // ── Middle: wizard ───────────────────────────────────────────────────
+        wizard = ConventionalWizardPanel(project, selectedChanges) { state ->
+            previewArea.text = state.buildMessage()
+        }
+
+        panel.add(topRow, BorderLayout.NORTH)
+        panel.add(wizard, BorderLayout.CENTER)
         return panel
     }
 
-    override fun getPreferredFocusedComponent(): JComponent {
-        return textArea
-    }
+    override fun getPreferredFocusedComponent(): JComponent = wizard
 
     fun prefillMessage(text: String) {
-        if (text.isNotBlank()) {
-            textArea.text = text
-        }
+        if (text.isNotBlank()) previewArea.text = text
     }
 
     fun executeCommit() {
-        val message = textArea.text.trim()
+        val message = wizard.getCurrentMessage().trim()
         if (message.isEmpty()) return
-
         val changeListManager = ChangeListManager.getInstance(project)
         val defaultList: LocalChangeList = changeListManager.defaultChangeList
-
-        // Para ejecutar el commit usamos CommitHelper u otras APIs internas si es necesario.
-        // Una manera sencilla es delegar al servicio de Checkin de IntelliJ.
         val commitHelper = CommitHelper(
-            project,
-            defaultList,
-            selectedChanges,
-            title,
-            message,
-            emptyList(),
-            false,
-            false,
-            com.intellij.util.NullableFunction<Any, Any> { null },
-            null
+            project, defaultList, selectedChanges, title, message,
+            emptyList(), false, false,
+            com.intellij.util.NullableFunction<Any, Any> { null }, null
         )
-        
-        // Ejecutar commit de forma asíncrona o sincrona dependiendo de la versión
         commitHelper.doCommit()
     }
 }
