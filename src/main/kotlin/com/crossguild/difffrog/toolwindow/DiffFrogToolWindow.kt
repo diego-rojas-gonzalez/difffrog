@@ -38,7 +38,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
     private val diffPanel: DiffRequestPanel
 
     init {
-        content.border = BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        content.border = BorderFactory.createEmptyBorder(0, 0, 0, 0)
 
         // --- RIGHT: Diff Viewer ---checkBox
         diffPanel = DiffManager.getInstance().createRequestPanel(project, this, null)
