@@ -209,10 +209,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                 .map { it.change }
             if (selectedItems.isNotEmpty()) {
                 val dialog = CommitMiniDialog(project, selectedItems)
-                if (dialog.showAndGet()) {
-                    // Commit already executed inside dialog before closing
-                    refreshChanges(listModel)
-                }
+                dialog.show()
             } else {
                 JOptionPane.showMessageDialog(content, "No files selected for commit.")
             }

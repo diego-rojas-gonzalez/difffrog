@@ -149,12 +149,17 @@ class ChipButton(text: String) : JButton(text) {
         val g2 = g as Graphics2D
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g2.color = when {
+            !isEnabled -> JBColor(Color(245,245,245), Color(65,65,65))
             isChipSelected -> JBColor(Color(80,140,255), Color(60,110,220))
             hasFocus() -> JBColor(Color(200,215,255), Color(60,70,110))
             else -> JBColor(Color(230,235,245), Color(55,60,75))
         }
         g2.fillRoundRect(0,0,width,height,14,14)
-        g2.color = if (isChipSelected) JBColor.WHITE else JBColor.foreground()
+        g2.color = when {
+            !isEnabled -> JBColor(Color(180,180,180), Color(100,100,100))
+            isChipSelected -> JBColor.WHITE
+            else -> JBColor.foreground()
+        }
         g2.font = font
         val fm = g2.fontMetrics
         g2.drawString(text, (width-fm.stringWidth(text))/2, (height-fm.height)/2+fm.ascent)
@@ -227,7 +232,7 @@ class TypeChipStep(
                         KeyEvent.VK_DOWN, 'J'.code -> moveFocus(COLS)
                         KeyEvent.VK_UP, 'K'.code -> moveFocus(-COLS)
                         KeyEvent.VK_ENTER -> { selectChip(i); onAdvance(false) }
-                        KeyEvent.VK_TAB -> onAdvance(selectedType == null)
+                        KeyEvent.VK_TAB -> { selectChip(focusedIdx); onAdvance(false) }
                     }
                     e.consume()
                 }
@@ -315,7 +320,7 @@ class ScopeStep(
     }
 
     private fun moveSugg(d: Int) { suggIdx = (suggIdx+d).coerceIn(0,suggChips.lastIndex); suggChips[suggIdx].requestFocusInWindow() }
-    private fun insertSugg(i: Int) { field.text = suggChips[i].text; onChanged(); field.requestFocusInWindow() }
+    private fun insertSugg(i: Int) { field.text = suggChips[i].text; onChanged(); onAdvance(false) }
     fun restore(scope: String?) { field.text = scope ?: "" }
     fun reset() { field.text = "" }
     fun hasContent() = field.text.isNotBlank()
@@ -333,7 +338,6 @@ class DescriptionStep(
     private val field = JBTextField().apply {
         border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
     }
-    private val bar = JProgressBar(0, 72)
     private val charLbl = JLabel("0 / 72")
     val descText get() = field.text.trim()
 
@@ -348,15 +352,18 @@ class DescriptionStep(
             }
         })
         field.document.addDocumentListener(simpleListener { updateBar(); onChanged() })
-        bar.preferredSize = Dimension(0, 6)
         val footer = JPanel(BorderLayout(4,0)).also { it.isOpaque = false; it.border = JBUI.Borders.empty(4,0,0,0) }
-        footer.add(bar, BorderLayout.CENTER); footer.add(charLbl, BorderLayout.EAST)
+        footer.add(charLbl, BorderLayout.EAST)
         add(field, BorderLayout.NORTH); add(footer, BorderLayout.CENTER)
     }
 
     private fun updateBar() {
-        val n = field.text.length; bar.value = minOf(n,72); charLbl.text = "$n / 72"
-        bar.foreground = when { n>72 -> JBColor.RED; n>50 -> JBColor(Color(255,165,0),Color(200,130,0)); else -> JBColor(Color(80,180,100),Color(60,150,80)) }
+        val n = field.text.length; charLbl.text = "$n / 72"
+        charLbl.foreground = when { 
+            n > 72 -> JBColor.RED
+            n > 50 -> JBColor(Color(255,165,0),Color(200,130,0))
+            else -> JBColor.foreground() 
+        }
     }
     fun restore(desc: String) { field.text = desc }
     fun reset() { field.text = "" }
@@ -392,7 +399,7 @@ class BodyStep(
                 }
             }
         })
-        area.document.addDocumentListener(simpleListener { onChanged() })
+        area.document.addDocumentListener(simpleListener { onChanged(); updateChipStates() })
         add(JBScrollPane(area).also { it.preferredSize = Dimension(0, 90); it.border = null }, BorderLayout.CENTER)
         
         val COLS = 2
@@ -421,10 +428,21 @@ class BodyStep(
     }
 
     private fun moveSugg(d: Int) { suggIdx = (suggIdx+d).coerceIn(0,suggChips.lastIndex); suggChips[suggIdx].requestFocusInWindow() }
+    private fun updateChipStates() {
+        val text = area.text
+        suggChips.forEachIndexed { i, chip ->
+            val prefix = suggs[i].substringBefore(": ") + ":"
+            val alreadyUsed = text.contains(prefix)
+            chip.isEnabled = !alreadyUsed
+        }
+    }
+
     private fun insertSugg(i: Int) { 
+        if (!suggChips[i].isEnabled) return
         val prefix = if (area.text.isNotEmpty() && !area.text.endsWith("\n")) "\n" else ""
         area.text += prefix + suggs[i]
         onChanged()
+        updateChipStates()
         area.requestFocusInWindow() 
     }
     fun restore(body: String?) { area.text = body ?: "" }
@@ -507,7 +525,6 @@ class ConventionalWizardPanel(
             updateButtonLabel()
         })
         bodyStep = BodyStep({ skip -> finishWizard(skip) }, {
-            onStateChanged(state.copy(body = bodyStep.bodyText.takeIf { it.isNotBlank() }))
             updateButtonLabel()
         })
     }

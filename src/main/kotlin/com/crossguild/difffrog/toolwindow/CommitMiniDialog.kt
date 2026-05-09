@@ -42,6 +42,7 @@ class CommitMiniDialog(
 
     init {
         title = "be careful with your changes!!! 🐸"
+        isModal = false
         init()
     }
 
@@ -67,8 +68,16 @@ class CommitMiniDialog(
         wizard = ConventionalWizardPanel(
             project, 
             selectedChanges,
-            onStateChanged = { state -> previewArea.text = state.buildMessage() },
-            onStepChanged = { step -> progressBar.value = step },
+            onStateChanged = { state -> 
+                if (state.step < 4) previewArea.text = state.buildMessage() 
+            },
+            onStepChanged = { step -> 
+                progressBar.value = step
+                previewArea.isEditable = (step == 4)
+                if (step == 4) {
+                    previewArea.text = wizard.getCurrentMessage()
+                }
+            },
             onFinish = {
                 executeCommit()
                 wizard.clearDraft()
@@ -84,6 +93,11 @@ class CommitMiniDialog(
     override fun getPreferredFocusedComponent(): JComponent = wizard
 
     override fun show() {
+        window?.addWindowFocusListener(object : java.awt.event.WindowAdapter() {
+            override fun windowLostFocus(e: java.awt.event.WindowEvent?) {
+                close(CANCEL_EXIT_CODE)
+            }
+        })
         super.show()
         wizard.requestInitialFocus()
     }
@@ -93,7 +107,7 @@ class CommitMiniDialog(
     }
 
     fun executeCommit() {
-        val message = wizard.getCurrentMessage().trim()
+        val message = previewArea.text.trim()
         if (message.isEmpty()) return
         val changeListManager = ChangeListManager.getInstance(project)
         val defaultList: LocalChangeList = changeListManager.defaultChangeList
