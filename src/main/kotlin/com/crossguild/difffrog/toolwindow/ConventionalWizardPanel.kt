@@ -154,6 +154,9 @@ class ChipButton(text: String) : JButton(text) {
             hasFocus() -> JBColor(Color(200,215,255), Color(60,70,110))
             else -> JBColor(Color(230,235,245), Color(55,60,75))
         }
+        //
+        // timber here 
+        
         g2.fillRoundRect(0,0,width,height,14,14)
         g2.color = when {
             !isEnabled -> JBColor(Color(180,180,180), Color(100,100,100))
@@ -602,17 +605,28 @@ class ConventionalWizardPanel(
             3 -> descStep.hasContent(); 4 -> bodyStep.hasContent()
             else -> false
         }
-        actionBtn.isVisible = state.step != 1 && state.step != 4
-        
-        if (state.step == 4) {
-            hintLbl.text = "Enter / Tab to Finish 🐸"
-        } else {
-            hintLbl.text = "Tab to continue  ·  hjkl / arrows to navigate"
+
+        actionBtn.isVisible = true// state.step != 1 && state.step != 4
+
+        when (state.step) {
+            1 -> hintLbl.text = footerText(state.step)
+            2 -> hintLbl.text = footerText(state.step)
+            3 -> hintLbl.text = footerText(state.step)
+            4 -> hintLbl.text = footerText(state.step)
         }
 
-        actionBtn.text = when {
-            hasContent -> "Continue →"
-            else -> "Skip ↓"
+        actionBtn.text = "Skip ↓"
+    }
+
+    fun footerText (step: Int) : String {
+        val continueText : String = "Tab to continue "
+        val moveActionText : String = "· hjkl / arrows to navigate"
+        val finishText : String = "Tab to finish 🐸"
+        return when (step) {
+            1, 2,  -> continueText + moveActionText
+            3 -> continueText
+            4 -> finishText
+            else -> ""
         }
     }
 

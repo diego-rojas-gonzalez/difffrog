@@ -60,7 +60,7 @@ class CommitMiniDialog(
         }
         val topRow = JPanel(BorderLayout(4, 0)).apply {
             isOpaque = false
-            add(progressBar, BorderLayout.NORTH)
+            //add(progressBar, BorderLayout.NORTH)
             add(previewScroll, BorderLayout.CENTER)
         }
 
@@ -75,7 +75,7 @@ class CommitMiniDialog(
                 progressBar.value = step
                 previewArea.isEditable = (step == 4)
                 if (step == 4) {
-                    previewArea.text = wizard.getCurrentMessage()
+                    previewArea.text = this@CommitMiniDialog.wizard.getCurrentMessage()
                 }
             },
             onFinish = {
