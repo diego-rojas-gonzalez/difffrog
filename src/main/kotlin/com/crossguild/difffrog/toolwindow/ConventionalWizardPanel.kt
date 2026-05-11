@@ -154,9 +154,6 @@ class ChipButton(text: String) : JButton(text) {
             hasFocus() -> JBColor(Color(200,215,255), Color(60,70,110))
             else -> JBColor(Color(230,235,245), Color(55,60,75))
         }
-        //
-        // timber here 
-        
         g2.fillRoundRect(0,0,width,height,14,14)
         g2.color = when {
             !isEnabled -> JBColor(Color(180,180,180), Color(100,100,100))
@@ -208,7 +205,7 @@ class TypeChipStep(
 ) : JPanel(BorderLayout()) {
     // 4 columns grid so chips wrap into actual rows
     private val COLS = 2
-    private val types = listOf("feat","fix","docs","style","refactor","test","chore","build","ci","perf","revert")
+    private val types = listOf("feat","fix","docs","style","refactor","test","chore","build","ci","perf","revert","vibecoded")
     val chips = types.map { ChipButton(it) }
     private var focusedIdx = 0
     var selectedType: String? = null
@@ -246,7 +243,7 @@ class TypeChipStep(
         // fill empty cells in last row
         val remainder = types.size % COLS
         if (remainder != 0) repeat(COLS - remainder) { grid.add(JPanel().also { it.isOpaque = false }) }
-        add(grid, BorderLayout.CENTER)
+        add(grid, BorderLayout.SOUTH)
     }
 
     private fun moveFocus(d: Int) {
@@ -276,6 +273,7 @@ class ScopeStep(
 ) : JPanel(BorderLayout()) {
     private val field = JBTextField().apply {
         border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+        margin = JBUI.insets(1, 0)
     }
     private val suggChips = suggestions.map { ChipButton(it) }
     private var suggIdx = 0
@@ -337,9 +335,12 @@ class ScopeStep(
 class DescriptionStep(
     private val onAdvance: (skip: Boolean) -> Unit,
     private val onChanged: () -> Unit
-) : JPanel(BorderLayout()) {
-    private val field = JBTextField().apply {
+) : JPanel(BorderLayout()) {    
+    private val field = JBTextArea(2, 40).apply {
         border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+        margin = JBUI.insets(1, 0)
+        lineWrap = true
+        wrapStyleWord = true
     }
     private val charLbl = JLabel("0 / 72")
     val descText get() = field.text.trim()
@@ -355,9 +356,10 @@ class DescriptionStep(
             }
         })
         field.document.addDocumentListener(simpleListener { updateBar(); onChanged() })
-        val footer = JPanel(BorderLayout(4,0)).also { it.isOpaque = false; it.border = JBUI.Borders.empty(4,0,0,0) }
+        val footer = JPanel(BorderLayout()).also { it.isOpaque = false; it.border = JBUI.Borders.empty(2,0,0,0) }
         footer.add(charLbl, BorderLayout.EAST)
-        add(field, BorderLayout.NORTH); add(footer, BorderLayout.CENTER)
+        add(field, BorderLayout.CENTER)
+        add(footer, BorderLayout.SOUTH)
     }
 
     private fun updateBar() {
@@ -384,6 +386,7 @@ class BodyStep(
 ) : JPanel(BorderLayout()) {
     private val area = JBTextArea(4, 40).apply {
         border = BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border())
+        margin = JBUI.insets(1, 0)
     }
     val bodyText get() = area.text.trim()
     private val suggs = listOf("Reviewed-by: ", "Required-by: ", "Suggested-by: ", "BREAKING CHANGE: ")
@@ -559,6 +562,8 @@ class ConventionalWizardPanel(
                 4 -> finishWizard(!bodyStep.hasContent())
             }
         }
+
+        //for test commit for commit
 
         val navRow = JPanel(BorderLayout(6,0)).also { it.isOpaque = false }
         val leftActions = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).also { it.isOpaque = false }
