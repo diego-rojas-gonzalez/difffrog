@@ -191,7 +191,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         toolbarPanel.add(unstageBtn)
 
         // ---- Commit Button (opens wizard dialog) ----
-        val commitBtn = JButton("\ud83d\udc38  Commit Selected")
+        val commitBtn = JButton("\ud83d\udc38  Commit Wizard")
         commitBtn.isEnabled = false
         // Update enabled state whenever list model changes
         fun updateCommitBtn() {
@@ -215,9 +215,13 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             }
         }
 
+        val magicCommitBtn = JButton("\ud83d\udc38  Auto Commit ✡️")
+
+
         // ---- Assemble left panel ----
         leftPanel.add(toolbarPanel, BorderLayout.NORTH)
         leftPanel.add(fileScrollPane, BorderLayout.CENTER)
+        leftPanel.add(magicCommitBtn, BorderLayout.SOUTH)
         leftPanel.add(commitBtn, BorderLayout.SOUTH)
 
         // ---- Splitter ----

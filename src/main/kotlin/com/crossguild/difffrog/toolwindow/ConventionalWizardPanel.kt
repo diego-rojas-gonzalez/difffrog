@@ -591,7 +591,7 @@ class ConventionalWizardPanel(
                 4 -> finishWizard(!bodyStep.hasContent())
                 }
         }
-
+        // more changes for test commit
         //for test commit for commit
 
         val navRow = JPanel(BorderLayout(6,0)).also { it.isOpaque = false }
