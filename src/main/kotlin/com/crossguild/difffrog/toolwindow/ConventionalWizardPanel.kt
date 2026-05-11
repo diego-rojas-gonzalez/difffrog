@@ -112,8 +112,40 @@ object FileTypeKeywordMapper {
 
 fun extractScopeSuggestions(project: Project, changes: List<Change>): List<String> {
     val stop = setOf("the","and","for","with","from","this","that","fix","add","use","get","set",
-        "update","remove","change","refactor","feat","docs","test","build","style","ci","chore","revert","perf","merge")
+        "update","remove","change","refactor","feat","docs","test","build","style","ci","chore","revert","perf","merge",
+        "src", "main", "java", "kotlin", "app", "lib", "test", "components", "utils", "com", "org", "net")
     val freq = mutableMapOf<String, Int>()
+
+    // 1. Contexto de Código (Archivos y Directorios)
+    changes.forEach { change ->
+        val file = change.virtualFile ?: return@forEach
+        
+        // Palabras del nombre del archivo (ej. "UserRepository.kt" -> "user", "repository")
+        val baseName = file.nameWithoutExtension
+        val nameWords = baseName.split(Regex("(?<=[a-z])(?=[A-Z])|[^a-zA-Z0-9]+"))
+            .map { it.lowercase() }
+            .filter { it.length in 3..14 && it !in stop }
+        
+        nameWords.forEach { freq[it] = (freq[it] ?: 0) + 2 }
+
+        // Nombres de directorios en el path
+        var parent = file.parent
+        var isImmediateParent = true
+        while (parent != null && parent.path != project.basePath) {
+            val dirName = parent.name.lowercase()
+            if (dirName.length in 3..14 && dirName !in stop) {
+                val weight = if (isImmediateParent) 3 else 1
+                freq[dirName] = (freq[dirName] ?: 0) + weight
+            }
+            isImmediateParent = false
+            parent = parent.parent
+        }
+    }
+
+    // 2. FileTypeKeywordMapper (por extensiones)
+    FileTypeKeywordMapper.keywordsFor(changes).forEach { freq[it] = (freq[it] ?: 0) + 2 }
+
+    // 3. Git Log Histórico (con peso menor)
     try {
         val paths = changes.mapNotNull { it.virtualFile?.path }
         if (paths.isNotEmpty()) {
@@ -128,7 +160,7 @@ fun extractScopeSuggestions(project: Project, changes: List<Change>): List<Strin
             proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
         }
     } catch (_: Exception) {}
-    FileTypeKeywordMapper.keywordsFor(changes).forEach { freq[it] = (freq[it] ?: 0) + 1 }
+
     return freq.entries.sortedByDescending { it.value }.take(10).map { it.key }
 }
 
@@ -486,7 +518,7 @@ class ConventionalWizardPanel(
     private val cardPanel = JPanel(cardLayout).also { it.isOpaque = false }
     private val actionBtn = JButton("Skip ↓")
     private val backBtn = JButton("← Back")
-    private val trashBtn = JButton("🗑")
+    private val trashBtn = JButton(" Reset")
     private val hintLbl = JLabel("Tab to continue  ·  hjkl / arrows to navigate").also {
         it.font = it.font.deriveFont(Font.ITALIC, 11f)
         it.foreground = JBColor.GRAY
@@ -546,9 +578,6 @@ class ConventionalWizardPanel(
             addActionListener { goBack() }
         }
         trashBtn.apply {
-            toolTipText = "Clear draft"
-            isBorderPainted = false; isContentAreaFilled = false
-            font = font.deriveFont(16f)
             addActionListener { clearDraft() }
             setFocusTraversalKeysEnabled(false)
         }
@@ -560,7 +589,7 @@ class ConventionalWizardPanel(
                 2 -> advance(2, if (!scopeStep.hasContent()) null else scopeStep.scopeText, !scopeStep.hasContent())
                 3 -> advance(3, if (!descStep.hasContent()) "" else descStep.descText, !descStep.hasContent())
                 4 -> finishWizard(!bodyStep.hasContent())
-            }
+                }
         }
 
         //for test commit for commit
@@ -569,7 +598,7 @@ class ConventionalWizardPanel(
         val leftActions = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).also { it.isOpaque = false }
 
         leftActions.add(backBtn)
-        leftActions.add(trashBtn)
+        leftActions.add(trashBtn, BorderLayout.CENTER)
         navRow.add(leftActions, BorderLayout.WEST)
         navRow.add(actionBtn, BorderLayout.EAST)
 
