@@ -207,7 +207,7 @@ class TypeChipStep(
     private val onFocusedChanged: (String) -> Unit  // notifies panel of currently-focused type
 ) : JPanel(BorderLayout()) {
     // 4 columns grid so chips wrap into actual rows
-    private val COLS = 4
+    private val COLS = 2
     private val types = listOf("feat","fix","docs","style","refactor","test","chore","build","ci","perf","revert")
     val chips = types.map { ChipButton(it) }
     private var focusedIdx = 0
@@ -246,7 +246,7 @@ class TypeChipStep(
         // fill empty cells in last row
         val remainder = types.size % COLS
         if (remainder != 0) repeat(COLS - remainder) { grid.add(JPanel().also { it.isOpaque = false }) }
-        add(grid, BorderLayout.NORTH)
+        add(grid, BorderLayout.CENTER)
     }
 
     private fun moveFocus(d: Int) {
@@ -294,7 +294,7 @@ class ScopeStep(
         })
         field.document.addDocumentListener(simpleListener { onChanged() })
 
-        val COLS = 4
+        val COLS = 2
         val rows = (suggChips.size + COLS - 1) / COLS
         val suggPanel = JPanel(GridLayout(rows, COLS, 6, 6)).also { it.isOpaque = false; it.border = JBUI.Borders.empty(4) }
         suggChips.forEachIndexed { i, chip ->
@@ -319,7 +319,7 @@ class ScopeStep(
         val top = JPanel(BorderLayout()).also { it.isOpaque = false; it.border = JBUI.Borders.empty(0,0,6,0) }
         top.add(field, BorderLayout.CENTER)
         add(top, BorderLayout.NORTH)
-        add(JBScrollPane(suggPanel).also { it.border = null; it.isOpaque = false; it.viewport.isOpaque = false }, BorderLayout.CENTER)
+        add(suggPanel, BorderLayout.SOUTH)
     }
 
     private fun moveSugg(d: Int) { suggIdx = (suggIdx+d).coerceIn(0,suggChips.lastIndex); suggChips[suggIdx].requestFocusInWindow() }
@@ -482,6 +482,8 @@ class ConventionalWizardPanel(
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout).also { it.isOpaque = false }
     private val actionBtn = JButton("Skip ↓")
+    private val backBtn = JButton("← Back")
+    private val trashBtn = JButton("🗑")
     private val hintLbl = JLabel("Tab to continue  ·  hjkl / arrows to navigate").also {
         it.font = it.font.deriveFont(Font.ITALIC, 11f)
         it.foreground = JBColor.GRAY
@@ -536,11 +538,11 @@ class ConventionalWizardPanel(
         cardPanel.add(typeStep, "1"); cardPanel.add(scopeStep, "2")
         cardPanel.add(descStep, "3"); cardPanel.add(bodyStep, "4")
 
-        val backBtn = JButton("← Back").apply {
+        backBtn.apply {
             setFocusTraversalKeysEnabled(false)
             addActionListener { goBack() }
         }
-        val trashBtn = JButton("🗑").apply {
+        trashBtn.apply {
             toolTipText = "Clear draft"
             isBorderPainted = false; isContentAreaFilled = false
             font = font.deriveFont(16f)
@@ -560,6 +562,7 @@ class ConventionalWizardPanel(
 
         val navRow = JPanel(BorderLayout(6,0)).also { it.isOpaque = false }
         val leftActions = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).also { it.isOpaque = false }
+
         leftActions.add(backBtn)
         leftActions.add(trashBtn)
         navRow.add(leftActions, BorderLayout.WEST)
@@ -600,13 +603,8 @@ class ConventionalWizardPanel(
     }
 
     private fun updateButtonLabel() {
-        val hasContent = when (state.step) {
-            1 -> typeStep.hasContent(); 2 -> scopeStep.hasContent()
-            3 -> descStep.hasContent(); 4 -> bodyStep.hasContent()
-            else -> false
-        }
 
-        actionBtn.isVisible = true// state.step != 1 && state.step != 4
+        actionBtn.isOpaque = state.step != 4
 
         when (state.step) {
             1 -> hintLbl.text = footerText(state.step)
@@ -616,6 +614,7 @@ class ConventionalWizardPanel(
         }
 
         actionBtn.text = "Skip ↓"
+        backBtn.isEnabled = state.step > 1
     }
 
     fun footerText (step: Int) : String {
