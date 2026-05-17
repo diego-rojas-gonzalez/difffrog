@@ -20,6 +20,10 @@ import com.intellij.util.ui.JBUI
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.vcs.changes.ui.RollbackChangesDialog
+import git4idea.repo.GitRepositoryManager
+import git4idea.commands.Git
+import git4idea.commands.GitCommand
+import git4idea.commands.GitLineHandler
 import java.awt.datatransfer.StringSelection
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -27,6 +31,7 @@ import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import com.intellij.openapi.ui.ComboBox
 
 data class ChangeItem(
     val change: Change,
@@ -36,6 +41,11 @@ data class ChangeItem(
 class DiffFrogToolWindow(private val project: Project) : Disposable {
     val content: JPanel = JPanel(BorderLayout())
     private val diffPanel: DiffRequestPanel
+    private val branchComboBox = ComboBox<String>().apply {
+        preferredSize = Dimension(150, 26)
+    }
+    private var allBranchesList = listOf<String>()
+    private var isUpdatingBranches = false
 
     init {
         content.border = BorderFactory.createEmptyBorder(0, 0, 0, 0)
@@ -173,10 +183,33 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         fileScrollPane.viewport.scrollMode = JViewport.SIMPLE_SCROLL_MODE
 
         // ---- Toolbar ----
-        val toolbarPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        val toolbarTopPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        
         val refreshBtn = JButton("↻ Refresh")
-        refreshBtn.addActionListener { refreshChanges(listModel) }
         val stageBtn = JButton("✔ All")
+        
+        updateBranches()
+        
+        refreshBtn.addActionListener { 
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val repoManager = GitRepositoryManager.getInstance(project)
+                val repo = repoManager.repositories.firstOrNull()
+                if (repo != null) {
+                    try {
+                        val handler = GitLineHandler(project, repo.root, GitCommand.FETCH)
+                        handler.addParameters("origin")
+                        Git.getInstance().runCommand(handler)
+                    } catch (e: Exception) {
+                        // ignore error
+                    }
+                }
+                ApplicationManager.getApplication().invokeLater {
+                    updateBranches()
+                    refreshChanges(listModel)
+                }
+            }
+        }
+        
         stageBtn.addActionListener {
             for (i in 0 until listModel.size) listModel.getElementAt(i).isSelected = true
             fileList.repaint()
@@ -186,9 +219,27 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             for (i in 0 until listModel.size) listModel.getElementAt(i).isSelected = false
             fileList.repaint()
         }
-        toolbarPanel.add(refreshBtn)
-        toolbarPanel.add(stageBtn)
-        toolbarPanel.add(unstageBtn)
+        
+        toolbarTopPanel.add(refreshBtn)
+        toolbarTopPanel.add(stageBtn)
+        toolbarTopPanel.add(unstageBtn)
+        
+        val toolbarPanel = JPanel(BorderLayout(0, 4))
+        toolbarPanel.border = com.intellij.util.ui.JBUI.Borders.empty(4)
+        toolbarPanel.add(toolbarTopPanel, BorderLayout.NORTH)
+        toolbarPanel.add(branchComboBox, BorderLayout.CENTER)
+        
+        // Branch ComboBox is not editable anymore        
+        branchComboBox.addActionListener {
+            if (isUpdatingBranches) return@addActionListener
+            val selected = branchComboBox.selectedItem as? String ?: return@addActionListener
+            val repoManager = git4idea.repo.GitRepositoryManager.getInstance(project)
+            val repo = repoManager.repositories.firstOrNull() ?: return@addActionListener
+            
+            if (repo.currentBranch?.name != selected && allBranchesList.contains(selected)) {
+                git4idea.branch.GitBrancher.getInstance(project).checkout(selected, false, listOf(repo), null)
+            }
+        }
 
         // ---- Commit Button (opens wizard dialog) ----
         val commitBtn = JButton("\ud83d\udc38  Commit Wizard")
@@ -217,7 +268,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
 
         val magicCommitBtn = JButton("\ud83d\udc38  Auto Commit ✡️")
 
-
+1
         // ---- Assemble left panel ----
         leftPanel.add(toolbarPanel, BorderLayout.NORTH)
         leftPanel.add(fileScrollPane, BorderLayout.CENTER)
@@ -267,6 +318,7 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
     }
 
     private fun refreshChanges(model: DefaultListModel<ChangeItem>) {
+        updateBranches()
         val changeListManager = ChangeListManager.getInstance(project)
         val changes = changeListManager.allChanges.sortedWith(com.intellij.openapi.vcs.changes.ui.ChangesComparator.getInstance(false))
         model.clear()
@@ -279,6 +331,26 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                 com.intellij.openapi.vcs.changes.CurrentContentRevision(path)
             )
             model.addElement(ChangeItem(change, false))
+        }
+    }
+
+    private fun updateBranches() {
+        if (isUpdatingBranches) return
+        val repoManager = GitRepositoryManager.getInstance(project)
+        val repo = repoManager.repositories.firstOrNull()
+        if (repo != null) {
+            val currentBranch = repo.currentBranch?.name
+            val localBranches = repo.branches.localBranches.map { it.name }.sorted()
+            val remoteBranches = repo.branches.remoteBranches.map { it.name }.sorted()
+            
+            allBranchesList = (localBranches + remoteBranches).distinct()
+            
+            isUpdatingBranches = true
+            branchComboBox.model = DefaultComboBoxModel(allBranchesList.toTypedArray())
+            if (currentBranch != null) {
+                branchComboBox.selectedItem = currentBranch
+            }
+            isUpdatingBranches = false
         }
     }
 
