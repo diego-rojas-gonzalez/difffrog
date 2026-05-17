@@ -12,6 +12,11 @@
   />
 </p>
 
+<p align="center">
+  <img width="487" height="600" alt="Captura de pantalla 2026-05-16 a la(s) 11 32 13 p m" src="https://github.com/user-attachments/assets/54bbfbc4-e33c-4a9f-a9de-188df46678e7" />
+</p>
+
+
 
 
 *difffrog* is a lightweight, kawaii-styled IntelliJ IDEA extension that helps you monitor your Git changes in real-time directly from your status bar. Keep your Pull Requests under control with a touch of personality!
