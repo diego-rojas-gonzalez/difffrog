@@ -308,8 +308,24 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                     },
                     com.intellij.openapi.progress.EmptyProgressIndicator()
                 )
+                // Forzar vista unificada (Unified View)
+                if (request is com.intellij.openapi.util.UserDataHolder) {
+                    val key = com.intellij.openapi.util.Key.create<String>("diff_default_view_type")
+                    request.putUserData(key, "Unified")
+                }
+
+                // Habilitar selección de líneas si el panel lo soporta
                 ApplicationManager.getApplication().invokeLater {
                     diffPanel.setRequest(request)
+                    
+                    // Intentar activar el soporte de selección en el visor
+                    val viewer = diffPanel.javaClass.getDeclaredField("myViewer").let {
+                        it.isAccessible = true
+                        it.get(diffPanel)
+                    }
+                    if (viewer is com.intellij.diff.impl.DiffRequestPanelImpl) {
+                        // Aquí podrías añadir listeners para capturar la selección de líneas
+                    }
                 }
             }
         } else {

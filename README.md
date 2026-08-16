@@ -28,8 +28,6 @@
 * *📊 Live Stats:* Instant counter of added (+) and deleted (-) lines compared to your target branch (develop, main, etc.).
 * *🎢 Counter Animation:* Smooth "slot-machine" style numbering that updates every time you save your work.
 * *🌡️ Dynamic Heatmap:* The color of added lines scales from neutral white to intense green as you approach your line limit.
-* *🌿 The 420 Milestone:* * *Warning:* Reaching your line limit triggers a ⚠️ alert symbol.
-    * *Perfect Balance:* Achieving exactly *420 additions and 420 deletions* unlocks the special 🌿 icon.
 * *⚙️ Fast Config:* One-click access to change target branches, line limits, and refresh intervals.
 
 ---

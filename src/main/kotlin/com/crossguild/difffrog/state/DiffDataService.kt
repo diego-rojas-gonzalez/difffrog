@@ -47,6 +47,21 @@ class DiffDataService(private val project: Project) : Disposable {
         triggerUpdate()
     }
 
+    private val selectedLines = mutableSetOf<String>() // Key: "filePath:lineNumber"
+
+    fun setLineSelected(filePath: String, lineNumber: Int, isSelected: Boolean) {
+        val key = "$filePath:$lineNumber"
+        if (isSelected) selectedLines.add(key) else selectedLines.remove(key)
+        triggerUpdate()
+    }
+
+    fun isLineSelected(filePath: String, lineNumber: Int): Boolean {
+        // Por defecto, si no está en el conjunto, asumimos que está seleccionada (comportamiento estándar de Git)
+        // O si quieres que el usuario las elija explícitamente, cambia la lógica aquí.
+        val key = "$filePath:$lineNumber"
+        return key in selectedLines
+    }
+
     fun triggerUpdate() {
         if (project.isDisposed) return
         scheduledTask?.cancel(false)
@@ -57,9 +72,16 @@ class DiffDataService(private val project: Project) : Disposable {
         scheduledTask = scheduler.schedule({
             if (project.isDisposed) return@schedule
 
-            val stats = calculateDiff(project, config.targetBranch)
-            targetAdded = stats.first
-            targetDeleted = stats.second
+            val stats = calculateDiff(project, config)
+            
+            // Si hay líneas seleccionadas manualmente, usamos ese conteo en lugar del total de Git
+            if (selectedLines.isNotEmpty()) {
+                targetAdded = selectedLines.size
+                targetDeleted = 0 // Podríamos extender esto para borrados también
+            } else {
+                targetAdded = stats.first
+                targetDeleted = stats.second
+            }
 
             // Notify listeners
             project.messageBus.syncPublisher(DiffUpdateListener.TOPIC).onDiffUpdated(targetAdded, targetDeleted)
@@ -67,13 +89,22 @@ class DiffDataService(private val project: Project) : Disposable {
         }, delay, TimeUnit.MILLISECONDS)
     }
 
-    private fun calculateDiff(project: Project, targetBranch: String): Pair<Int, Int> {
+    private fun calculateDiff(project: Project, config: com.crossguild.difffrog.config.DiffFrogConfig): Pair<Int, Int> {
         val repository = GitRepositoryManager.getInstance(project).repositories.firstOrNull() ?: return Pair(0, 0)
         var added = 0
         var deleted = 0
         try {
             val handler = GitLineHandler(project, repository.root, GitCommand.DIFF)
-            handler.addParameters(targetBranch, "--numstat")
+            handler.addParameters(config.targetBranch, "--numstat")
+            
+            // Agregar exclusiones si existen
+            if (config.excludedPatterns.isNotEmpty()) {
+                handler.addParameters("--", ".")
+                config.excludedPatterns.forEach { pattern ->
+                    handler.addParameters(":(exclude)$pattern")
+                }
+            }
+
             val result = Git.getInstance().runCommand(handler)
             result.output.forEach { line ->
                 val parts = line.trim().split(Regex("\\s+"))

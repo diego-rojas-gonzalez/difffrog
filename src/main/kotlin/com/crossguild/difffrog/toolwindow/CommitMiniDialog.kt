@@ -5,7 +5,10 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vcs.changes.LocalChangeList
-import com.intellij.openapi.vcs.changes.ui.CommitHelper
+//import com.intellij.openapi.vcs.changes.ui.CommitHelper
+import com.intellij.openapi.vcs.changes.CommitContext
+import com.intellij.vcs.commit.ChangeListCommitState
+import com.intellij.vcs.commit.LocalChangesCommitter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
@@ -109,13 +112,15 @@ class CommitMiniDialog(
     fun executeCommit() {
         val message = previewArea.text.trim()
         if (message.isEmpty()) return
+
         val changeListManager = ChangeListManager.getInstance(project)
         val defaultList: LocalChangeList = changeListManager.defaultChangeList
-        val commitHelper = CommitHelper(
-            project, defaultList, selectedChanges, title, message,
-            emptyList(), false, false,
-            com.intellij.util.NullableFunction<Any, Any> { null }, null
-        )
-        commitHelper.doCommit()
+
+        val commitState = ChangeListCommitState(defaultList, selectedChanges, message)
+
+        val commitContext = CommitContext()
+
+        val committer = LocalChangesCommitter(project, commitState, commitContext, title)
+        committer.runCommit(title, false)
     }
 }
