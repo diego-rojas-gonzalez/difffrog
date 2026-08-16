@@ -38,11 +38,7 @@ class DiffFrogSettingsPanel(private val project: Project? = null) {
     private val excludedList = JBList(excludedListModel)
 
     private val previewLabel = JBLabel().apply {
-        horizontalAlignment = SwingConstants.CENTER
-        border = BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder("📺 LIVE PREVIEW"),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        )
+        horizontalAlignment = SwingConstants.LEFT
     }
 
     init {

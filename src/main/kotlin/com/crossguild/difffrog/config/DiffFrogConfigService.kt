@@ -35,7 +35,7 @@ class DiffFrogConfigService {
         config.maxLines = props.getInt(KEY_MAX_LINES, 420)
         config.delayLevel = props.getInt(KEY_DELAY_LEVEL, 1)
         
-        val formatStr = props.getValue(KEY_DISPLAY_FORMAT, DisplayFormat.LABELED.name)
+        val formatStr = props.getValue(KEY_DISPLAY_FORMAT, DisplayFormat.COMPACT.name)
         config.displayFormat = try {
             DisplayFormat.valueOf(formatStr)
         } catch (e: IllegalArgumentException) {
