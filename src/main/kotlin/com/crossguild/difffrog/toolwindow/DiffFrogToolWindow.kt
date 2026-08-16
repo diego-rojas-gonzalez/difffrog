@@ -16,6 +16,7 @@ import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ide.CopyPasteManager
@@ -244,6 +245,21 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
         // ---- Commit Button (opens wizard dialog) ----
         val commitBtn = JButton("\ud83d\udc38  Commit Wizard")
         commitBtn.isEnabled = false
+
+        val commitMsgInput = JBTextField().apply {
+            emptyText.text = "Enter commit message or use wizard..."
+        }
+
+        commitMsgInput.document.addDocumentListener(object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                if (commitMsgInput.text.trim().isEmpty()) {
+                    commitBtn.text = "🐸 Commit frog"
+                } else {
+                    commitBtn.text = "🪖Commit "
+                }
+            }
+        })
+
         // Update enabled state whenever list model changes
         fun updateCommitBtn() {
             commitBtn.isEnabled = listModel.elements().toList().any { it.isSelected }
@@ -258,22 +274,39 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             val selectedItems = listModel.elements().toList()
                 .filter { it.isSelected }
                 .map { it.change }
-            if (selectedItems.isNotEmpty()) {
+            
+            if (selectedItems.isEmpty()) {
+                JOptionPane.showMessageDialog(content, "No files selected for commit.")
+                return@addActionListener
+            }
+
+            val directMessage = commitMsgInput.text.trim()
+            if (directMessage.isEmpty()) {
                 val dialog = CommitMiniDialog(project, selectedItems)
                 dialog.show()
             } else {
-                JOptionPane.showMessageDialog(content, "No files selected for commit.")
+                executeDirectCommit(selectedItems, directMessage)
+                commitMsgInput.text = ""
             }
         }
 
+        // This mausquest branch for use later ( ollama auto commit provider )
         val magicCommitBtn = JButton("\ud83d\udc38  Auto Commit ✡️")
 
-1
         // ---- Assemble left panel ----
+        val commitActionPanel = JPanel(BorderLayout(0, 2)).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(4)
+            add(commitMsgInput, BorderLayout.NORTH)
+            val buttonsPanel = JPanel(GridLayout(2, 1, 0, 2)).apply { isOpaque = false }
+            buttonsPanel.add(commitBtn)
+            //uttonsPanel.add(magicCommitBtn)
+            add(buttonsPanel, BorderLayout.CENTER)
+        }
+
         leftPanel.add(toolbarPanel, BorderLayout.NORTH)
         leftPanel.add(fileScrollPane, BorderLayout.CENTER)
-        leftPanel.add(magicCommitBtn, BorderLayout.SOUTH)
-        leftPanel.add(commitBtn, BorderLayout.SOUTH)
+        leftPanel.add(commitActionPanel, BorderLayout.SOUTH)
 
         // ---- Splitter ----
         val splitter = JBSplitter(false, 0.3f)
@@ -368,6 +401,15 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
             }
             isUpdatingBranches = false
         }
+    }
+
+    private fun executeDirectCommit(selectedChanges: List<Change>, message: String) {
+        val changeListManager = ChangeListManager.getInstance(project)
+        val defaultList = changeListManager.defaultChangeList
+        val commitState = com.intellij.vcs.commit.ChangeListCommitState(defaultList, selectedChanges, message)
+        val commitContext = com.intellij.openapi.vcs.changes.CommitContext()
+        val committer = com.intellij.vcs.commit.LocalChangesCommitter(project, commitState, commitContext, "DiffFrog Commit")
+        committer.runCommit("DiffFrog Commit", false)
     }
 
     override fun dispose() {}

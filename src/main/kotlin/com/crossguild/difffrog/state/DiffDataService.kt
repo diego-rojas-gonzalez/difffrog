@@ -43,6 +43,13 @@ class DiffDataService(private val project: Project) : Disposable {
     init {
         if (isListenerRegistered.compareAndSet(false, true)) {
             EditorFactory.getInstance().eventMulticaster.addDocumentListener(documentListener, this)
+            
+            // Listen to VCS changes (commits, rollbacks, etc.)
+            com.intellij.openapi.vcs.changes.ChangeListManager.getInstance(project).addChangeListListener(object : com.intellij.openapi.vcs.changes.ChangeListListener {
+                override fun changeListUpdateDone() {
+                    triggerUpdate()
+                }
+            }, this)
         }
         triggerUpdate()
     }
