@@ -121,6 +121,16 @@ class CommitMiniDialog(
         val commitContext = CommitContext()
 
         val committer = LocalChangesCommitter(project, commitState, commitContext, title)
+
+        // for manage event when response is received (success or failed) example type shi ->
+        /*
+        committer.addResultHandler(object : CommitResultHandler {
+            override fun onSuccess(commitMessage: String) {
+            }
+            override fun onCancel() { ... }
+            override fun onFailure(errors: List<com.intellij.openapi.vcs.VcsException>) { ... }
+        })
+        */
         committer.runCommit(title, false)
     }
 }
