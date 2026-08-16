@@ -341,6 +341,9 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                     },
                     com.intellij.openapi.progress.EmptyProgressIndicator()
                 )
+                //
+                //
+                //
                 // Forzar vista unificada (Unified View)
                 if (request is com.intellij.openapi.util.UserDataHolder) {
                     val key = com.intellij.openapi.util.Key.create<String>("diff_default_view_type")
