@@ -33,6 +33,8 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 
 data class ChangeItem(
     val change: Change,
@@ -276,7 +278,10 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                 .map { it.change }
             
             if (selectedItems.isEmpty()) {
-                JOptionPane.showMessageDialog(content, "No files selected for commit.")
+                NotificationGroupManager.getInstance()
+                    .getNotificationGroup("DiffFrog")
+                    ?.createNotification("No files selected for commit.", NotificationType.WARNING)
+                    ?.notify(project)
                 return@addActionListener
             }
 
@@ -341,6 +346,9 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
                     },
                     com.intellij.openapi.progress.EmptyProgressIndicator()
                 )
+                //
+                //
+                //
                 //
                 //
                 //

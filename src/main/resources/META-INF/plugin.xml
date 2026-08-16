@@ -17,12 +17,16 @@
             <add-to-group group-id="MainToolbar" anchor="last"/>
         </action>
     </actions>
+
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable instance="com.crossguild.difffrog.config.DiffFrogConfigurable"
-                                      displayName="DiffFrog"/>
-                            id="com.crossguild.difffrog.settings"
+                                 id="com.crossguild.difffrog.settings"
+                                 displayName="DiffFrog"/>
+
         <toolWindow id="DiffFrog" anchor="right" icon="/icons/toolWindow.svg"
                     factoryClass="com.crossguild.difffrog.toolwindow.DiffFrogToolWindowFactory"/>
+
+        <notificationGroup id="DiffFrog" displayType="BALLOON"/>
     </extensions>
 
 </idea-plugin>
