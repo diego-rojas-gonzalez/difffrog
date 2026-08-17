@@ -5,6 +5,7 @@
 ----
 <img width="1264" height="816" alt="FVtqT" src="https://github.com/user-attachments/assets/4c7b62c3-93ca-4d55-bf6b-204317bb7406" />
 # 🐸 difffrog
+
 A minimal and efficient tool for visual diff insights.
 
 *difffrog* is a lightweight, kawaii-styled IntelliJ IDEA extension that helps you monitor your Git changes in real-time directly from your status bar. Keep your Pull Requests under control with a touch of personality!
