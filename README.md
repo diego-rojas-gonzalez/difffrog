@@ -1,23 +1,11 @@
+
+> [!IMPORTANT]
+> # HELP SAVE THE PEHUENCHE TOAD! 
+> The amphibians of the Maule region on Chile need our help. You can support the conservation of the Pehuenche toad (Rhinella pehuenche) by taking action > here: 👉 [salvemosaltomaule.cl](https://salvemosaltomaule.cl)
+----
+<img width="1264" height="816" alt="FVtqT" src="https://github.com/user-attachments/assets/4c7b62c3-93ca-4d55-bf6b-204317bb7406" />
 # 🐸 difffrog
-<p align="center">
-  <img
-    src="https://github.com/user-attachments/assets/28d97875-b088-4ed0-89d0-460d80211e5d"
-    style="width:49%; "
-    alt="difffrog gif"
-  />
-  <img
-    src="https://github.com/user-attachments/assets/22f0fec2-97ee-45a9-993d-b481dc5cb6e6"
-    style="width:10%;"
-    alt="difffrog img"
-  />
-</p>
-
-<p align="center">
-  <img width="487" height="600" alt="Captura de pantalla 2026-05-16 a la(s) 11 32 13 p m" src="https://github.com/user-attachments/assets/54bbfbc4-e33c-4a9f-a9de-188df46678e7" />
-</p>
-
-
-
+A minimal and efficient tool for visual diff insights.
 
 *difffrog* is a lightweight, kawaii-styled IntelliJ IDEA extension that helps you monitor your Git changes in real-time directly from your status bar. Keep your Pull Requests under control with a touch of personality!
 
@@ -39,6 +27,9 @@
 3. Search for *"difffrog"*.
 4. Click *Install* and restart your IDE.
 
+
+5. [Check on plugin website](https://plugins.jetbrains.com/plugin/29433-difffrog/edit)
+
 ---
 
 ## 🛠️ Configuration
@@ -47,17 +38,11 @@ Click on the stats label in the toolbar to open the settings popup:
 
 | Setting | Description |
 | :--- | :--- |
-| *Branch* | The branch to compare your current work against (e.g., master). |
+| *Branch* | The branch to compare your current work against (e.g., master). (local and remote branches) |
 | *Max Lines* | The threshold for the green heatmap and alerts (Default: 420). |
 | *Refresh Speed* | How often the frog scans for changes (from 🐢 Slow to ⚡ Instant). |
-
----
-
-## 🏗️ Technical Stack
-
-* *Language:* Kotlin
-* *Framework:* IntelliJ Platform SDK
-* *VCS Integration:* Git4Idea (Native Git support)
+| *Display format* |now you can manage how do you see the lines added and deleted in compact mode or select what icons show also track or untrack files for countig  |
+| Excluded patterns on counting with Git syntax| Now can add to path files for ignore in counting (example: If you not need count a unit test you can add * Test * on config ) |
 
 ---
 
@@ -66,7 +51,7 @@ Click on the stats label in the toolbar to open the settings popup:
 Want to make the frog even better?
 1. Fork the project.
 2. Create your feature branch (git checkout -b feature/FrogImprovement).
-3. Commit your changes (git commit -m 'Add some froggy magic').
+3. Commit your changes (git commit -m 'Add some froggy magic function').
 4. Push to the branch (git push origin feature/FrogImprovement).
 5. Open a Pull Request.
 
