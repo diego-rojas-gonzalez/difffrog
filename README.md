@@ -1,7 +1,7 @@
 
 > [!IMPORTANT]
 > # HELP SAVE THE PEHUENCHE TOAD! 
-> The amphibians of the Maule region on Chile need our help. You can support the conservation of the Pehuenche toad (Rhinella pehuenche) by taking action > here: 👉 [salvemosaltomaule.cl](https://salvemosaltomaule.cl)
+> The amphibians of the Maule region on Chile need our help. You can support the conservation of the Pehuenche toad (Alsodes pehuenche) by taking action > here: 👉 [salvemosaltomaule.cl](https://salvemosaltomaule.cl)
 ----
 <img width="1264" height="816" alt="FVtqT" src="https://github.com/user-attachments/assets/4c7b62c3-93ca-4d55-bf6b-204317bb7406" />
 # 🐸 difffrog
