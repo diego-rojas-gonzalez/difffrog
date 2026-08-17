@@ -54,6 +54,10 @@ intellijPlatform {
     }
 }
 
+tasks.named("instrumentCode") {
+    enabled = false
+}
+
 tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"

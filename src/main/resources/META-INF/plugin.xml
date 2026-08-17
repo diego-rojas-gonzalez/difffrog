@@ -13,11 +13,20 @@
                 class="com.crossguild.difffrog.GitDiffToolbarAction"
                 text="Git Diff Stats">
             <add-to-group group-id="MainToolbarRight" anchor="last"/>
+            <add-to-group group-id="NavBarToolBar" anchor="last"/>
+            <add-to-group group-id="MainToolbar" anchor="last"/>
         </action>
     </actions>
+
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="DiffFrog" anchor="right" icon="/META-INF/pluginIcon.svg"
+        <applicationConfigurable instance="com.crossguild.difffrog.config.DiffFrogConfigurable"
+                                 id="com.crossguild.difffrog.settings"
+                                 displayName="DiffFrog"/>
+
+        <toolWindow id="DiffFrog" anchor="right" icon="/icons/toolWindow.svg"
                     factoryClass="com.crossguild.difffrog.toolwindow.DiffFrogToolWindowFactory"/>
+
+        <notificationGroup id="DiffFrog" displayType="BALLOON"/>
     </extensions>
 
 </idea-plugin>

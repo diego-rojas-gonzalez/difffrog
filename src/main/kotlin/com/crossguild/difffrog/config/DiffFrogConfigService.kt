@@ -21,7 +21,9 @@ class DiffFrogConfigService {
         private const val KEY_DIFF_SCOPE = "com.crossguild.difffrog.diffScope"
         private const val KEY_INCLUDE_UNTRACKED = "com.crossguild.difffrog.includeUntracked"
         private const val KEY_FONT_SIZE = "com.crossguild.difffrog.fontSize"
-        
+        private const val KEY_EXCLUDED_PATTERNS = "com.crossguild.difffrog.excludedPatterns"
+
+
         private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
     }
 
@@ -33,7 +35,7 @@ class DiffFrogConfigService {
         config.maxLines = props.getInt(KEY_MAX_LINES, 420)
         config.delayLevel = props.getInt(KEY_DELAY_LEVEL, 1)
         
-        val formatStr = props.getValue(KEY_DISPLAY_FORMAT, DisplayFormat.LABELED.name)
+        val formatStr = props.getValue(KEY_DISPLAY_FORMAT, DisplayFormat.COMPACT.name)
         config.displayFormat = try {
             DisplayFormat.valueOf(formatStr)
         } catch (e: IllegalArgumentException) {
@@ -44,6 +46,9 @@ class DiffFrogConfigService {
         config.diffScope = props.getValue(KEY_DIFF_SCOPE, "Working directory")
         config.includeUntrackedFiles = props.getBoolean(KEY_INCLUDE_UNTRACKED, true)
         config.fontSize = props.getInt(KEY_FONT_SIZE, 12)
+        
+        val excludedStr = props.getValue(KEY_EXCLUDED_PATTERNS, "")
+        config.excludedPatterns = if (excludedStr.isEmpty()) emptyList() else excludedStr.split(";")
 
         return config
     }
@@ -58,17 +63,11 @@ class DiffFrogConfigService {
         props.setValue(KEY_DIFF_SCOPE, config.diffScope)
         props.setValue(KEY_INCLUDE_UNTRACKED, config.includeUntrackedFiles, true)
         props.setValue(KEY_FONT_SIZE, config.fontSize, 12)
+        props.setValue(KEY_EXCLUDED_PATTERNS, config.excludedPatterns.joinToString(";"))
+
+        com.intellij.openapi.application.ApplicationManager.getApplication().messageBus
+            .syncPublisher(DiffFrogConfigListener.TOPIC)
+            .onConfigChanged(config)
     }
 
-    fun exportToJson(config: DiffFrogConfig): String {
-        return gson.toJson(config)
-    }
-
-    fun importFromJson(jsonString: String): DiffFrogConfig? {
-        return try {
-            gson.fromJson(jsonString, DiffFrogConfig::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
