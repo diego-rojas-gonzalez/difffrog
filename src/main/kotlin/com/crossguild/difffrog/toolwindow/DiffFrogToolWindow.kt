@@ -11,7 +11,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vcs.changes.actions.diff.ChangeDiffRequestProducer
-import com.intellij.openapi.vcs.changes.ui.ChangesComparator
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -380,7 +379,9 @@ class DiffFrogToolWindow(private val project: Project) : Disposable {
     private fun refreshChanges(model: DefaultListModel<ChangeItem>) {
         updateBranches()
         val changeListManager = ChangeListManager.getInstance(project)
-        val changes = changeListManager.allChanges.sortedWith(com.intellij.openapi.vcs.changes.ui.ChangesComparator.getInstance(false))
+        val changes = changeListManager.allChanges.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { 
+            it.afterRevision?.file?.path ?: it.beforeRevision?.file?.path ?: "" 
+        })
         model.clear()
         changes.forEach { change -> model.addElement(ChangeItem(change, true)) }
 
